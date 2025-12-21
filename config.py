@@ -13,7 +13,7 @@ SCRAPINGANT_API_KEYS = [
 ]
 
 # Gemini API Key
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyAgtcYIoSuTH_UUIcZU8SXFsJ2hjUGedpw")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyDy-3fN5DG1dTiAyuOK-Xzd5zlS-ysFKdw")
 
 # WordPress Credentials
 WP_URL = os.getenv("WP_URL", "http://auto.local")

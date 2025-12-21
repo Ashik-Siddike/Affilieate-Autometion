@@ -4,6 +4,7 @@ import database
 import ai_writer
 import publisher
 import schema_helper
+import n8n_handler
 
 # List of Test URLs (Example: Nike Shoes or similar)
 TEST_URLS = [
@@ -37,8 +38,37 @@ def mark_keyword_processed(keyword):
     with open("processed_keywords.txt", "a") as f:
         f.write(f"{keyword}\n")
 
+def get_user_preferences():
+    """Asks the user for runtime preferences."""
+    print("\n>>> Configuration Setup")
+    
+    def get_yes_no(prompt):
+        while True:
+            response = input(f"{prompt} (y/n): ").lower().strip()
+            if response in ['y', 'yes']:
+                return True
+            elif response in ['n', 'no']:
+                return False
+    
+    config = {
+        'use_comparison': get_yes_no("1. Include Comparison Table?"),
+        'use_internal_links': get_yes_no("2. Include Internal Links?"),
+        'publish_wp': get_yes_no("3. Publish to WordPress?"),
+    }
+    
+    if config['publish_wp']:
+        config['trigger_n8n'] = get_yes_no("4. Trigger n8n Automation (Social Media)?")
+    else:
+        config['trigger_n8n'] = False
+        
+    print("\n>>> Configuration Set!")
+    return config
+
 def main():
     print("Starting Amazon Affiliate Automation Bot...")
+    
+    # Get User Preferences
+    config = get_user_preferences()
     
     # 1. Initialize Database
     database.init_db()
@@ -58,9 +88,6 @@ def main():
     
     if not discovered_urls:
         print(f"No products found for {keyword}. Moving to next.")
-        # Optional: Mark as processed even if no products found? 
-        # For now, let's NOT mark it processed so user can check why, 
-        # OR mark it so we don't get stuck. Let's mark it to avoid infinite loops.
         mark_keyword_processed(keyword)
         return
         
@@ -99,9 +126,14 @@ def main():
         # 6. Generate AI Article
         print("Generating AI content...")
         
-        # 6a. Fetch Comparison and Linking Data
-        similar_products = database.get_similar_products(current_asin=asin, limit=2)
-        internal_links = database.get_published_posts(limit=5)
+        # 6a. Fetch Comparison and Linking Data (CONDITIONAL)
+        similar_products = None
+        if config['use_comparison']:
+            similar_products = database.get_similar_products(current_asin=asin, limit=2)
+            
+        internal_links = None
+        if config['use_internal_links']:
+            internal_links = database.get_published_posts(limit=5)
         
         article_content = ai_writer.generate_article(product_data, similar_products, internal_links)
         
@@ -114,25 +146,45 @@ def main():
         schema_script = schema_helper.generate_product_schema(product_data)
         article_content += f"\n\n{schema_script}"
 
-        # 7. Publish to WordPress
-        print("Publishing to WordPress...")
-        image_url = product_data.get('image_url')
-        
-        post_link = publisher.publish_post(
-            title=f"Review: {product_data['title'][:50]}...", 
-            content=article_content,
-            image_url=image_url
-        )
-
-        if post_link:
-            print(f"Published at: {post_link}")
+        # 7. Publish to WordPress (CONDITIONAL)
+        if config['publish_wp']:
+            print("Publishing to WordPress...")
+            image_url = product_data.get('image_url')
             
-            # 8. Update DB to published and save link
-            database.mark_as_published(asin)
-            database.update_post_link(asin, post_link)
-            print("Marked as published in DB and link saved.")
+            post_link = publisher.publish_post(
+                title=f"Review: {product_data['title'][:50]}...", 
+                content=article_content,
+                image_url=image_url
+            )
+    
+            if post_link:
+                print(f"Published at: {post_link}")
+                
+                # 8. Update DB to published and save link
+                database.mark_as_published(asin)
+                database.update_post_link(asin, post_link)
+                print("Marked as published in DB and link saved.")
+    
+                # 9. Trigger n8n Automation (CONDITIONAL)
+                if config['trigger_n8n']:
+                    print("Triggering n8n automation...")
+                    social_caption = f"Check out our latest review: {product_data['title']}! #retro #gaming #review"
+                    # We pass the 'keyword' as category, or we could scrape it. 
+                    # Keyword is a good proxy for Niche/Category.
+                    n8n_handler.trigger_n8n_workflow(
+                        title=product_data['title'],
+                        amazon_link=post_link, 
+                        image_url=image_url,
+                        social_caption=social_caption,
+                        category=keyword,
+                        long_description=article_content
+                    )
+            else:
+                print("Publishing failed.")
         else:
-            print("Publishing failed.")
+            print("Skipping WordPress publishing key user preference.")
+            # We might want to save the content locally or just dry run.
+            print("Dry run complete. Content generated but not published.")
 
         # 9. Sleep between tasks to be polite
         print("Sleeping for 5 seconds...")
