@@ -1,0 +1,198 @@
+{
+  "name": "Master Amazon Social Media Auto-Poster",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "amazon-master-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "79578871-7eaa-40d1-b1a3-f84a888a3a80",
+      "name": "Amazon-Master-Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        224,
+        2320
+      ],
+      "webhookId": "87cb3dcd-4fdb-4321-bee7-9de4addc0d8f"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Product Title: {{ $json.title }}\nFeatures: {{ $json.description }}\nAffiliate Link: {{ $json.amazon_link }}",
+        "options": {
+          "systemMessage": "You are a professional social media copywriter specializing in Facebook affiliate marketing.\n\nTask: Convert the provided product information into a high-converting Facebook post.\n\nInstructions:\n- Keep the tone engaging, helpful, and persuasive.\n- Structure the post with a catchy headline, 3 bullet points for key benefits, a clear Call to Action (CTA), and the affiliate link.\n\nStrict Constraint: Output ONLY the final post content. Do not include any JSON labels, explanations, or other social media platform contents."
+        }
+      },
+      "id": "a8eb0084-e515-4c17-b15b-0f2da712feaf",
+      "name": "AI Content Transformer1",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        448,
+        2320
+      ]
+    },
+    {
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "903645296168851",
+        "edge": "feed",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "message",
+                "value": "={{ $json.output }}"
+              },
+              {
+                "name": "link",
+                "value": "={{ $('Amazon-Master-Webhook1').first().json.amazon_link }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "30c06e1d-9ee7-4aec-a7f0-3a6946c219f7",
+      "name": "Post to Facebook1",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        800,
+        2392
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "9B8iOFRy2GfL1jmT",
+          "name": "Facebook Graph account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 9
+      },
+      "id": "0349f0ab-d797-465e-8205-6000a152ec06",
+      "name": "Merge All Responses1",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1024,
+        2208
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"complete\",\n  \"platforms_posted\": [\"Pinterest\", \"Facebook\", \"Instagram\", \"Twitter\", \"LinkedIn\", \"Telegram\", \"Discord\", \"Medium\", \"DeviantArt\"]\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "9fb39b8e-11ab-47d0-b611-9136fa95796f",
+      "name": "Send Final Response1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1248,
+        2320
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "0d1c3746-1431-4b89-9d24-262352084e19",
+      "name": "Google Gemini Chat Model1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        520,
+        2544
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "bug4wSu0QrvH0HAI",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Amazon-Master-Webhook1": {
+      "main": [
+        [
+          {
+            "node": "AI Content Transformer1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Content Transformer1": {
+      "main": [
+        [
+          {
+            "node": "Post to Facebook1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge All Responses1",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Post to Facebook1": {
+      "main": [
+        [
+          {
+            "node": "Merge All Responses1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge All Responses1": {
+      "main": [
+        [
+          {
+            "node": "Send Final Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Content Transformer1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "95304bb0-b7f4-4cd5-b00d-f590017815d5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9677cc0e1dd2417613f45fa0bf7541be12cebb91bf43c72f5506175b9d18fc32"
+  },
+  "id": "fel6PaueVbNGu8kI",
+  "tags": []
+}

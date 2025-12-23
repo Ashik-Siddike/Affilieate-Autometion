@@ -12,13 +12,30 @@ SCRAPINGANT_API_KEYS = [
     "af6ea4940229405eb95e234201561bc9",
 ]
 
-# Gemini API Key
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyDy-3fN5DG1dTiAyuOK-Xzd5zlS-ysFKdw")
+# Gemini API Keys (Rotation Pool)
+# Add multiple API keys here for automatic switching when credit runs out
+# When one key's credit is exhausted, it will automatically switch to the next key
+# Format: Add your API keys as strings in the list below
+GEMINI_API_KEYS = [
+    "AIzaSyDBA0t3mujAmX6KJIfog4YjrDHOlryhgys",  # Key 1 (replace with your key)
+    # "your-second-api-key-here",  # Key 2 - uncomment and add your key
+    # "your-third-api-key-here",   # Key 3 - uncomment and add your key
+    # "your-fourth-api-key-here",  # Key 4 - uncomment and add your key
+    # "your-fifth-api-key-here",   # Key 5 - uncomment and add your key
+]
+
+# Legacy single key support (for backward compatibility)
+GEMINI_API_KEY = GEMINI_API_KEYS[0] if GEMINI_API_KEYS else None
 
 # WordPress Credentials
 WP_URL = os.getenv("WP_URL", "http://auto.local")
 WP_USERNAME = os.getenv("WP_USERNAME", "ashik")
 WP_APP_PASSWORD = os.getenv("WP_APP_PASSWORD", "Wf8o ag3e aAd4 2MZ0 dKFO pdKV")
+
+# n8n Webhook URL (PRODUCTION)
+# Important: Production URL requires workflow to be ACTIVE in n8n dashboard
+# If you get 404 error, make sure the workflow is toggled ON in n8n
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "https://ashik-mama.app.n8n.cloud/webhook/amazon-master-webhook")
 
 # Niche Keywords for Auto-Discovery
 NICHE_KEYWORDS = [

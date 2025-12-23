@@ -78,6 +78,25 @@ The bot will then:
 6.  Trigger the n8n workflow.
 
 ## 🔗 n8n Workflow Integration
+if you want to use n8n workflow integration on huggingface space, please use this link
+```chrome
+"https://ashiksissike-n8n-free.hf.space/";
+```
+### 🌐 Running Local Infrastructure
+
+If you are running n8n locally and need to expose the webhook to the internet, use Cloudflare Tunnel.
+
+1.  **Start Cloudflare Tunnel**:
+    ```powershell
+    cd C:\cloudflared
+    .\cloudflared.exe tunnel --url http://127.0.0.1:5678
+    ```
+
+2.  **Start n8n**:
+    ```powershell      
+    $env:WEBHOOK_URL="https://connecting-counter-basis-transcript.trycloudflare.com"; n8n start
+    ```
+### ⚙️ Workflow Setup
 
 This bot is designed to work with a specific n8n workflow for social syndication.
 

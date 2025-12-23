@@ -1,14 +1,45 @@
 import google.generativeai as genai
-from config import GEMINI_API_KEY
+from config import GEMINI_API_KEYS
 import time
 
-# Configure Gemini
-try:
-    genai.configure(api_key=GEMINI_API_KEY)
-    # Using specific 1.5 flash model for better free tier stability
-    model = genai.GenerativeModel('gemini-flash-latest')
-except Exception as e:
-    print(f"Error configuring Gemini: {e}")
+# API Key Rotation System (Similar to ScrapingAnt)
+_current_key_index = 0  # Track current API key index
+
+def get_current_gemini_key():
+    """Returns the current Gemini API key."""
+    if not GEMINI_API_KEYS:
+        raise ValueError("No Gemini API keys configured in config.py")
+    return GEMINI_API_KEYS[_current_key_index]
+
+def switch_to_next_gemini_key():
+    """Switches to the next Gemini API key in rotation."""
+    global _current_key_index
+    _current_key_index = (_current_key_index + 1) % len(GEMINI_API_KEYS)
+    print(f"🔄 Switched to Gemini API key {_current_key_index + 1}/{len(GEMINI_API_KEYS)}")
+
+def is_quota_error(error):
+    """
+    Checks if the error indicates quota/credit exhaustion.
+    Returns True if we should switch to next API key.
+    """
+    error_str = str(error).lower()
+    quota_indicators = [
+        "429",
+        "quota exceeded",
+        "quota",
+        "resource exhausted",
+        "rate limit",
+        "permission denied",
+        "403",
+        "billing",
+        "credit"
+    ]
+    return any(indicator in error_str for indicator in quota_indicators)
+
+def get_gemini_model(api_key):
+    """Creates and returns a Gemini model instance with the given API key."""
+    genai.configure(api_key=api_key)
+    return genai.GenerativeModel('gemini-flash-latest')
 
 def generate_article(product_data, similar_products=None, internal_links=None):
     """
@@ -128,32 +159,77 @@ def generate_article(product_data, similar_products=None, internal_links=None):
     Return ONLY the raw HTML code. Do NOT wrap it in markdown block (```html).
     """
 
-    max_retries = 3
-    base_delay = 10  # Increased delay slightly for safety
-
-    for attempt in range(max_retries):
+    # API Key Rotation System: Try all keys if quota errors occur
+    if not GEMINI_API_KEYS:
+        print("❌ No Gemini API keys configured. Please add keys in config.py")
+        return None
+    
+    keys_tried = set()  # Track which keys we've already tried for this request
+    
+    for key_attempt in range(len(GEMINI_API_KEYS)):
+        current_key = get_current_gemini_key()
+        key_id = f"{current_key[:10]}..."  # Show partial key for logging
+        
+        # Skip if we've already tried this key (shouldn't happen, but safety check)
+        if current_key in keys_tried:
+            switch_to_next_gemini_key()
+            continue
+            
+        keys_tried.add(current_key)
+        print(f"🤖 Using Gemini API key {_current_key_index + 1}/{len(GEMINI_API_KEYS)} ({key_id})")
+        
         try:
-            print(f"DEBUG: Writing Masterpiece for '{title}' (Attempt {attempt + 1}/{max_retries})...")
+            # Create model with current API key
+            model = get_gemini_model(current_key)
+            print(f"📝 Writing article for '{title}'...")
+            
             response = model.generate_content(prompt)
             
             if response and response.text:
                 clean_text = response.text.replace("```html", "").replace("```", "").strip()
+                print(f"✅ Article generated successfully with key {_current_key_index + 1}")
                 return clean_text
             else:
-                print("DEBUG: Gemini returned empty response.")
-                return None
+                print("⚠️ Gemini returned empty response. Trying next key...")
+                switch_to_next_gemini_key()
+                time.sleep(2)  # Brief pause before switching keys
+                continue
 
         except Exception as e:
             error_str = str(e)
-            if "429" in error_str:
-                wait_time = base_delay * (attempt + 1)
-                print(f"WARNING: Quota exceeded (429). Retrying in {wait_time} seconds...")
-                time.sleep(wait_time)
+            
+            # Check if it's a quota/credit exhaustion error
+            if is_quota_error(e):
+                print(f"⚠️ Quota/Credit exhausted on key {_current_key_index + 1} ({key_id})")
+                print(f"   Error: {error_str[:200]}...")
+                
+                # Switch to next key
+                if key_attempt < len(GEMINI_API_KEYS) - 1:
+                    switch_to_next_gemini_key()
+                    time.sleep(2)  # Brief pause before trying next key
+                    continue
+                else:
+                    print(f"❌ All {len(GEMINI_API_KEYS)} API keys exhausted. Please add more keys or wait for quota reset.")
+                    return None
             else:
-                print(f"Error generating AI content: {e}")
-                # If it's a critical error (like 400 or 403), retrying won't help
-                if "400" in error_str or "403" in error_str:
-                    break
-                time.sleep(5) # Wait a bit for other errors before retrying
+                # For non-quota errors, log and retry with same key (with delay)
+                print(f"⚠️ Error with key {_current_key_index + 1}: {error_str[:200]}...")
+                print(f"   Retrying with same key after delay...")
+                time.sleep(5)
+                
+                try:
+                    model = get_gemini_model(current_key)
+                    response = model.generate_content(prompt)
+                    if response and response.text:
+                        clean_text = response.text.replace("```html", "").replace("```", "").strip()
+                        return clean_text
+                except Exception as retry_error:
+                    # If retry also fails, try next key
+                    if is_quota_error(retry_error):
+                        if key_attempt < len(GEMINI_API_KEYS) - 1:
+                            switch_to_next_gemini_key()
+                            continue
+                    print(f"❌ Retry failed: {retry_error}")
     
+    print(f"❌ Failed to generate article after trying all {len(GEMINI_API_KEYS)} API keys")
     return None
