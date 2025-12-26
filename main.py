@@ -103,7 +103,7 @@ def get_user_preferences():
     config['publish_wp'] = get_yes_no("3. Publish to WordPress?", default=True)
     
     if config['publish_wp']:
-        config['trigger_n8n'] = get_yes_no("4. Trigger n8n Automation (Social Media)?", default=False)
+        config['trigger_n8n'] = get_yes_no("4. Trigger n8n Automation (Facebook Auto-Post)?", default=True)
     else:
         config['trigger_n8n'] = False
     
@@ -154,28 +154,30 @@ def get_all_unprocessed_keywords():
     unprocessed = [kw for kw in keywords if kw not in processed]
     return unprocessed
 
-def main():
-    print("🚀 Starting Amazon Affiliate Automation Bot...\n")
+
+def main(config=None, log_function=print):
+    log_function("🚀 Starting Amazon Affiliate Automation Bot...\n")
     
-    # Get User Preferences
-    config = get_user_preferences()
+    # Get User Preferences if not provided
     if not config:
-        return
+        config = get_user_preferences()
+        if not config:
+            return
     
     # 1. Initialize Database
     database.init_db()
-    print("✅ Database initialized.\n")
+    log_function("✅ Database initialized.\n")
 
     # 2. Get unprocessed keywords
     unprocessed_keywords = get_all_unprocessed_keywords()
     
     if not unprocessed_keywords:
-        print("❌ No new keywords to process. Add more to keywords.txt")
+        log_function("❌ No new keywords to process. Add more to keywords.txt")
         return
 
     # Limit keywords based on user preference
     keywords_to_process = unprocessed_keywords[:config['max_keywords']]
-    print(f"📋 Processing {len(keywords_to_process)} keyword(s) from {len(unprocessed_keywords)} available\n")
+    log_function(f"📋 Processing {len(keywords_to_process)} keyword(s) from {len(unprocessed_keywords)} available\n")
 
     # Track statistics
     stats = {
@@ -189,100 +191,100 @@ def main():
     for keyword_idx, keyword in enumerate(keywords_to_process, 1):
         # Check if we've reached max articles limit
         if config['max_total_articles'] > 0 and stats['articles_generated'] >= config['max_total_articles']:
-            print(f"\n⚠️  Reached maximum article limit ({config['max_total_articles']}). Stopping.")
+            log_function(f"\n⚠️  Reached maximum article limit ({config['max_total_articles']}). Stopping.")
             break
 
-        print("="*70)
-        print(f"📌 Keyword {keyword_idx}/{len(keywords_to_process)}: {keyword}")
-        print("="*70)
+        log_function("="*70)
+        log_function(f"📌 Keyword {keyword_idx}/{len(keywords_to_process)}: {keyword}")
+        log_function("="*70)
         
         # Search for products
         discovered_urls = scraper.search_amazon(keyword, limit=config['products_per_keyword'])
         
         if not discovered_urls:
-            print(f"⚠️  No products found for '{keyword}'. Skipping.")
+            log_function(f"⚠️  No products found for '{keyword}'. Skipping.")
             mark_keyword_processed(keyword)
             continue
         
-        print(f"✅ Found {len(discovered_urls)} product(s)\n")
+        log_function(f"✅ Found {len(discovered_urls)} product(s)\n")
         
         # Process each product
         for product_idx, url in enumerate(discovered_urls, 1):
-            # Check article limit again
+             # Check article limit again
             if config['max_total_articles'] > 0 and stats['articles_generated'] >= config['max_total_articles']:
-                print(f"\n⚠️  Reached maximum article limit. Moving to next keyword.")
+                log_function(f"\n⚠️  Reached maximum article limit. Moving to next keyword.")
                 break
                 
-            print(f"\n{'─'*70}")
-            print(f"📦 Product {product_idx}/{len(discovered_urls)}: {url}")
-            print(f"{'─'*70}")
+            log_function(f"\n{'─'*70}")
+            log_function(f"📦 Product {product_idx}/{len(discovered_urls)}: {url}")
+            log_function(f"{'─'*70}")
             
             # 3. Check product status
             asin = scraper.extract_asin(url)
             if not asin:
-                print("⚠️  Invalid Amazon URL. Skipping.")
+                log_function("⚠️  Invalid Amazon URL. Skipping.")
                 stats['errors'] += 1
                 continue
                 
             status = database.check_product_status(asin)
             
             if status == 1:
-                print(f"⏭️  Product {asin} already published. Skipping.")
+                log_function(f"⏭️  Product {asin} already published. Skipping.")
                 continue
             elif status == 0:
-                print(f"🔄 Product {asin} exists but NOT published. Retrying generation...")
+                log_function(f"🔄 Product {asin} exists but NOT published. Retrying generation...")
             
             # 4. Scrape Data
-            print("🔍 Scraping product data...")
+            log_function("🔍 Scraping product data...")
             product_data = scraper.get_amazon_data(url)
             
             if not product_data:
-                print("❌ Failed to scrape data. Skipping.")
+                log_function("❌ Failed to scrape data. Skipping.")
                 stats['errors'] += 1
                 continue
             
-            print(f"✅ Product: {product_data.get('title', 'Unknown')[:60]}...")
-            print(f"   Price: {product_data.get('price', 'N/A')} | Rating: {product_data.get('rating', 'N/A')}")
+            log_function(f"✅ Product: {product_data.get('title', 'Unknown')[:60]}...")
+            log_function(f"   Price: {product_data.get('price', 'N/A')} | Rating: {product_data.get('rating', 'N/A')}")
             
             # 5. Save to DB
             database.save_product(product_data)
             if status is None:
-                print(f"💾 Saved {asin} to database.")
+                log_function(f"💾 Saved {asin} to database.")
             else:
-                print(f"💾 Updated product data for {asin}.")
+                log_function(f"💾 Updated product data for {asin}.")
 
             # 6. Generate AI Article
-            print("🤖 Generating AI content...")
+            log_function("🤖 Generating AI content...")
             
             # 6a. Fetch Comparison and Linking Data (CONDITIONAL - to save API credits)
             similar_products = None
             if config['use_comparison']:
                 similar_products = database.get_similar_products(current_asin=asin, limit=2)
-                print(f"📊 Using {len(similar_products)} similar products for comparison")
+                log_function(f"📊 Using {len(similar_products)} similar products for comparison")
                 
             internal_links = None
             if config['use_internal_links']:
                 internal_links = database.get_published_posts(limit=5)
-                print(f"🔗 Using {len(internal_links)} internal links")
+                log_function(f"🔗 Using {len(internal_links)} internal links")
             
             article_content = ai_writer.generate_article(product_data, similar_products, internal_links)
             
             if not article_content:
-                print("❌ Failed to generate article. Skipping.")
+                log_function("❌ Failed to generate article. Skipping.")
                 stats['errors'] += 1
                 continue
 
             stats['articles_generated'] += 1
-            print(f"✅ Article generated successfully! ({stats['articles_generated']}/{config['max_total_articles'] if config['max_total_articles'] > 0 else '∞'})")
+            log_function(f"✅ Article generated successfully! ({stats['articles_generated']}/{config['max_total_articles'] if config['max_total_articles'] > 0 else '∞'})")
 
             # 6.5 Generate Schema
-            print("📋 Generating JSON-LD Schema...")
+            log_function("📋 Generating JSON-LD Schema...")
             schema_script = schema_helper.generate_product_schema(product_data)
             article_content += f"\n\n{schema_script}"
 
             # 7. Publish to WordPress (CONDITIONAL)
             if config['publish_wp']:
-                print("🚀 Publishing to WordPress...")
+                log_function("🚀 Publishing to WordPress...")
                 image_url = product_data.get('image_url')
                 
                 post_link = publisher.publish_post(
@@ -292,7 +294,7 @@ def main():
                 )
         
                 if post_link:
-                    print(f"✅ Published at: {post_link}")
+                    log_function(f"✅ Published at: {post_link}")
                     stats['articles_published'] += 1
                     
                     # 8. Update DB to published and save link
@@ -301,9 +303,9 @@ def main():
         
                     # 9. Trigger n8n Automation (CONDITIONAL)
                     if config['trigger_n8n']:
-                        print("📱 Triggering n8n automation...")
+                        log_function("📱 Triggering n8n automation for Facebook posting...")
                         social_caption = f"Check out our latest review: {product_data['title']}! #{keyword.replace(' ', '')} #review"
-                        n8n_handler.trigger_n8n_workflow(
+                        n8n_success = n8n_handler.trigger_n8n_workflow(
                             title=product_data['title'],
                             amazon_link=post_link, 
                             image_url=image_url,
@@ -311,42 +313,57 @@ def main():
                             category=keyword,
                             long_description=article_content
                         )
+                        if n8n_success:
+                            log_function("✅ n8n workflow triggered successfully!")
+                            log_function("📱 Facebook post should be published - Check your Facebook page")
+                            log_function("💡 If post not visible, check n8n dashboard: https://ashik-mama.app.n8n.cloud")
+                            log_function("   → Go to 'Executions' tab → Find latest execution → Check 'Post to Facebook1' node")
+                        else:
+                            log_function("⚠️  n8n workflow failed - Check n8n dashboard for errors")
+                            log_function("🔍 Debug steps:")
+                            log_function("   1. Go to: https://ashik-mama.app.n8n.cloud")
+                            log_function("   2. Check 'Executions' tab for error details")
+                            log_function("   3. Verify Facebook credentials in workflow")
+                            log_function("   4. Run: python debug_n8n_facebook.py")
+                            stats['errors'] += 1
                 else:
-                    print("❌ Publishing failed.")
+                    log_function("❌ Publishing failed.")
                     stats['errors'] += 1
             else:
-                print("⏭️  Skipping WordPress publishing (user preference).")
-                print("💡 Dry run complete. Content generated but not published.")
+                log_function("⏭️  Skipping WordPress publishing (user preference).")
+                log_function("💡 Dry run complete. Content generated but not published.")
 
             # Update statistics
             stats['total_processed'] += 1
             
             # Delay between products
             if product_idx < len(discovered_urls) and config['delay_between_products'] > 0:
-                print(f"\n⏸️  Waiting {config['delay_between_products']} seconds before next product...")
+                log_function(f"\n⏸️  Waiting {config['delay_between_products']} seconds before next product...")
                 time.sleep(config['delay_between_products'])
 
         # After processing all products for this keyword, mark it as processed
         mark_keyword_processed(keyword)
-        print(f"\n✅ Completed processing for keyword: {keyword}")
-        print(f"📊 Progress: {stats['articles_generated']} articles generated, {stats['articles_published']} published")
+        log_function(f"\n✅ Completed processing for keyword: {keyword}")
+        log_function(f"📊 Progress: {stats['articles_generated']} articles generated, {stats['articles_published']} published")
         
         # Delay between keywords
         if keyword_idx < len(keywords_to_process) and config['delay_between_keywords'] > 0:
-            print(f"\n⏸️  Waiting {config['delay_between_keywords']} seconds before next keyword...")
+            log_function(f"\n⏸️  Waiting {config['delay_between_keywords']} seconds before next keyword...")
             time.sleep(config['delay_between_keywords'])
     
     # Final Summary
-    print("\n" + "="*70)
-    print("📊 FINAL SUMMARY")
-    print("="*70)
-    print(f"✅ Total products processed: {stats['total_processed']}")
-    print(f"✅ Articles generated: {stats['articles_generated']}")
-    print(f"✅ Articles published: {stats['articles_published']}")
+    log_function("\n" + "="*70)
+    log_function("📊 FINAL SUMMARY")
+    log_function("="*70)
+    log_function(f"✅ Total products processed: {stats['total_processed']}")
+    log_function(f"✅ Articles generated: {stats['articles_generated']}")
+    log_function(f"✅ Articles published: {stats['articles_published']}")
     if stats['errors'] > 0:
-        print(f"⚠️  Errors encountered: {stats['errors']}")
-    print("="*70)
-    print("🎉 Session completed!")
+        log_function(f"⚠️  Errors encountered: {stats['errors']}")
+    log_function("="*70)
+    log_function("🎉 Session completed!")
+    
+    return stats
 
 if __name__ == "__main__":
     main()

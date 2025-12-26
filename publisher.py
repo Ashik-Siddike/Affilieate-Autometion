@@ -5,7 +5,10 @@ from config import WP_URL, WP_USERNAME, WP_APP_PASSWORD
 def get_auth_header():
     credentials = f"{WP_USERNAME}:{WP_APP_PASSWORD}"
     token = base64.b64encode(credentials.encode())
-    return {'Authorization': f'Basic {token.decode("utf-8")}'}
+    return {
+        'Authorization': f'Basic {token.decode("utf-8")}',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
 
 def upload_media(image_url, title=None):
     """

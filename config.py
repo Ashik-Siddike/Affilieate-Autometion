@@ -17,20 +17,23 @@ SCRAPINGANT_API_KEYS = [
 # When one key's credit is exhausted, it will automatically switch to the next key
 # Format: Add your API keys as strings in the list below
 GEMINI_API_KEYS = [
-    "AIzaSyDBA0t3mujAmX6KJIfog4YjrDHOlryhgys",  # Key 1 (replace with your key)
-    # "your-second-api-key-here",  # Key 2 - uncomment and add your key
-    # "your-third-api-key-here",   # Key 3 - uncomment and add your key
-    # "your-fourth-api-key-here",  # Key 4 - uncomment and add your key
-    # "your-fifth-api-key-here",   # Key 5 - uncomment and add your key
+    "AIzaSyBZMwE3GSn2FcFPaIe8ryvYCNYIFm3C0Dw",  # Key 1 (replace with your key)
+    "AIzaSyAZKIWu0L91cy04No6pSMhLmfNkAsx75Kw",  # Key 2 - uncomment and add your key
+    "AIzaSyCW1pScKpPGHLH4KMqbmFYMjTChwsDMcgM",  # Key 3 - uncomment and add your key
+    "AIzaSyB2ob5CxnMldLZ0a2L7LoiapGC-hEnKZ0o",  # Key 4 - uncomment and add your key
+    "AIzaSyAkknQk90V8DjabxLYSPYHgJFCh_QzEca0",  # Key 5 - uncomment and add your key
+    "AIzaSyCS25geg3Z-pEfNhpFStZPuRB1Ah1U7Oyk",  # Key 6 - uncomment and add your key
+    "AIzaSyAe8FGWbWSBeYtYFmCXEZjVmhfQ7ljb7Eg",  # Key 7 - uncomment and add your key
+    "AIzaSyCrtUVKvOf8__XGWbAUHl8QXP_ngYOfKd8",  # Key 8 - uncomment and add your key
 ]
 
 # Legacy single key support (for backward compatibility)
 GEMINI_API_KEY = GEMINI_API_KEYS[0] if GEMINI_API_KEYS else None
 
 # WordPress Credentials
-WP_URL = os.getenv("WP_URL", "http://auto.local")
+WP_URL = os.getenv("WP_URL", "https://automation-project.cstjpi.xyz/")
 WP_USERNAME = os.getenv("WP_USERNAME", "ashik")
-WP_APP_PASSWORD = os.getenv("WP_APP_PASSWORD", "Wf8o ag3e aAd4 2MZ0 dKFO pdKV")
+WP_APP_PASSWORD = os.getenv("WP_APP_PASSWORD", "Q65c e8pR 4P9z uh0g Zc4g ac2g")
 
 # n8n Webhook URL (PRODUCTION)
 # Important: Production URL requires workflow to be ACTIVE in n8n dashboard

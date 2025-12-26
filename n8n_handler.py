@@ -37,6 +37,10 @@ def trigger_n8n_workflow(title, amazon_link, image_url, social_caption, category
     # Extract short description from HTML content for n8n workflow
     description = extract_text_from_html(long_description, max_length=300)
     
+    # Ensure description is not empty
+    if not description or len(description) < 10:
+        description = f"Check out this amazing product: {title}. It's a top-rated choice in {category}. Click the link to learn more!"
+
     payload = {
         "title": title,
         "description": description,  # Required by n8n AI Content Transformer
@@ -49,31 +53,96 @@ def trigger_n8n_workflow(title, amazon_link, image_url, social_caption, category
 
     try:
         print(f"📡 Sending data to n8n webhook: {N8N_WEBHOOK_URL}")
-        response = requests.post(N8N_WEBHOOK_URL, json=payload, timeout=30)
+        print(f"   Payload: title='{title[:50]}...', description='{description[:50]}...'")
+        
+        response = requests.post(N8N_WEBHOOK_URL, json=payload, timeout=90)  # Increased timeout for AI processing
         
         if response.status_code == 200:
-            print(f"✅ Successfully sent data to n8n for '{title}'")
-            return True
+            try:
+                response_data = response.json()
+                print(f"✅ Successfully sent data to n8n for '{title}'")
+                print(f"📋 n8n Response: {json.dumps(response_data, indent=2)}")
+                
+                # Check if Facebook posting was successful
+                if isinstance(response_data, dict):
+                    if response_data.get('status') == 'complete':
+                        platforms = response_data.get('platforms_posted', [])
+                        if 'Facebook' in platforms or 'facebook' in str(platforms).lower():
+                            print(f"✅ Facebook post published successfully!")
+                            return True
+                        else:
+                            print(f"⚠️  Workflow completed but Facebook status unclear")
+                            print(f"   Platforms in response: {platforms}")
+                            print(f"   💡 Check n8n dashboard Executions tab for Facebook node errors")
+                            print(f"   💡 Verify Facebook credentials in n8n workflow")
+                            return True  # Workflow executed but Facebook might have failed
+                    else:
+                        print(f"⚠️  Workflow response: {response_data}")
+                        print(f"   💡 Check n8n dashboard for execution details")
+                        return True
+                else:
+                    print(f"✅ n8n workflow executed successfully")
+                    print(f"   💡 Check n8n dashboard to verify Facebook post was published")
+                    return True
+            except json.JSONDecodeError:
+                # Response is not JSON, but status is 200
+                response_text = response.text.strip()
+                
+                if not response_text or len(response_text) == 0:
+                    # Empty response - workflow triggered but response node might not be configured properly
+                    print(f"⚠️  n8n workflow triggered but received empty response")
+                    print(f"   This usually means:")
+                    print(f"   1. Workflow is processing (AI might be generating content)")
+                    print(f"   2. Response node might not be properly configured")
+                    print(f"   3. Workflow execution might still be running")
+                    print(f"\n   💡 IMPORTANT: Check n8n dashboard immediately:")
+                    print(f"      → Go to: https://ashik-mama.app.n8n.cloud")
+                    print(f"      → Click 'Executions' tab")
+                    print(f"      → Find latest execution (should be recent)")
+                    print(f"      → Check execution status:")
+                    print(f"         - If 'Running': Wait for it to complete")
+                    print(f"         - If 'Success': Check 'Post to Facebook1' node")
+                    print(f"         - If 'Error': Click to see error details")
+                    print(f"      → Click on 'Post to Facebook1' node to see:")
+                    print(f"         - If Green: Post was sent (check Facebook page)")
+                    print(f"         - If Red: Click to see error (likely Facebook token issue)")
+                    return True  # Workflow triggered, but need to check dashboard
+                else:
+                    print(f"✅ n8n workflow executed successfully (non-JSON response)")
+                    print(f"   Response text: {response_text[:200]}")
+                    print(f"   💡 Check n8n dashboard Executions tab to verify Facebook posting")
+                    return True
+                
         elif response.status_code == 404:
             print(f"❌ n8n webhook not found (404)")
             print(f"   URL: {N8N_WEBHOOK_URL}")
             if "/webhook/" in N8N_WEBHOOK_URL and "/webhook-test/" not in N8N_WEBHOOK_URL:
-                print(f"   💡 Hint: Production URL requires workflow to be ACTIVE in n8n")
-                print(f"   💡 Or use test URL: Change /webhook/ to /webhook-test/ in config.py")
-            print(f"   Response: {response.text}")
+                print(f"   💡 Hint: Production URL requires workflow to be ACTIVE in n8n dashboard")
+                print(f"   💡 Make sure workflow 'Master Amazon Social Media Auto-Poster' is toggled ON")
+            print(f"   Response: {response.text[:200]}")
+            return False
+        elif response.status_code == 401 or response.status_code == 403:
+            print(f"❌ Authentication failed ({response.status_code})")
+            print(f"   Check n8n credentials and permissions")
             return False
         else:
-            print(f"❌ Failed to trigger n8n: {response.status_code} - {response.text}")
+            print(f"❌ Failed to trigger n8n: {response.status_code}")
+            print(f"   Response: {response.text[:500]}")
             return False
 
     except requests.exceptions.Timeout:
-        print(f"❌ n8n webhook request timed out (30s)")
+        print(f"❌ n8n webhook request timed out (90s)")
+        print(f"   The workflow might be processing. Check n8n dashboard for execution status.")
         return False
     except requests.exceptions.ConnectionError:
         print(f"❌ Could not connect to n8n webhook")
         print(f"   URL: {N8N_WEBHOOK_URL}")
-        print(f"   Check if n8n is running and URL is correct")
+        print(f"   Check if:")
+        print(f"   1. n8n instance is running")
+        print(f"   2. URL is correct")
+        print(f"   3. Internet connection is active")
         return False
     except Exception as e:
         print(f"❌ Error triggering n8n workflow: {e}")
+        print(f"   Error type: {type(e).__name__}")
         return False
