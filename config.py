@@ -43,3 +43,6 @@ NICHE_KEYWORDS = [
 # Supabase Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# Automation Key
+AUTO_KEY = os.getenv("AUTO_KEY")

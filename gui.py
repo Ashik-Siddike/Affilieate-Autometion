@@ -3,16 +3,9 @@ import pandas as pd
 import os
 import time
 import base64
-from main import main as run_bot
-from config import NICHE_KEYWORDS, WP_URL, SCRAPINGANT_API_KEYS, GEMINI_API_KEYS, N8N_WEBHOOK_URL, WP_USERNAME, WP_APP_PASSWORD, SUPABASE_URL, SUPABASE_KEY
-import streamlit as st
-import pandas as pd
-import os
-import time
-import base64
 import requests
 from main import main as run_bot
-from config import NICHE_KEYWORDS, WP_URL, SCRAPINGANT_API_KEYS, GEMINI_API_KEYS, N8N_WEBHOOK_URL, WP_USERNAME, WP_APP_PASSWORD, SUPABASE_URL, SUPABASE_KEY
+from config import NICHE_KEYWORDS, WP_URL, SCRAPINGANT_API_KEYS, GEMINI_API_KEYS, N8N_WEBHOOK_URL, WP_USERNAME, WP_APP_PASSWORD, SUPABASE_URL, SUPABASE_KEY, AUTO_KEY
 
 # ==========================================
 # 🛠️ HELPER FUNCTIONS (SUPABASE REST)
@@ -108,6 +101,57 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# ==========================================
+# 🤖 AUTOMATION TRIGGER (MAGIC LINK)
+# ==========================================
+# Link format: /?start=true&key=SECRET&site_id=1
+query_params = st.query_params
+if query_params.get("start") == "true":
+    secret = query_params.get("key")
+    if secret == AUTO_KEY:
+        st.write("🤖 Automation Triggered via URL...")
+        
+        # Load sites to find target
+        sites = load_sites()
+        if not sites:
+            st.error("❌ No sites configured in Supabase.")
+            st.stop()
+            
+        # Target specific site or default to first
+        target_site = sites[0]
+        if query_params.get("site_id"):
+            try:
+                sid = int(query_params.get("site_id"))
+                target_site = next((s for s in sites if s['id'] == sid), sites[0])
+            except:
+                pass
+        
+        st.write(f"🌍 Target Site: {target_site['name']} ({target_site['url']})")
+        
+        # Default Automation Config
+        auto_config = {
+            'max_keywords': 1,             # Process 1 keyword per run (ideal for cron)
+            'products_per_keyword': 3,
+            'max_total_articles': 3,
+            'use_comparison': True,
+            'use_internal_links': True,
+            'publish_wp': True,
+            'trigger_n8n': True,
+            'delay_between_products': 2,
+            'delay_between_keywords': 2
+        }
+        
+        try:
+            stats = run_bot(config=auto_config, log_function=st.write, site_config=target_site)
+            st.success(f"✅ Run Complete: {stats['articles_published']} Published")
+        except Exception as e:
+            st.error(f"❌ Automation Error: {e}")
+            
+        st.stop() # 🛑 STOP GUI RENDERING HERE
+    else:
+        st.error("⛔ Invalid Security Key")
+        st.stop()
 
 # Custom CSS for Modern Glassmorphism Look (Preserved)
 st.markdown("""
