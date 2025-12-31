@@ -30,20 +30,16 @@ jobs:
     - name: Run Bot (Auto Mode)
       env:
         AUTO_MODE: "true"
-        # Secrets must be added in GitHub Repository Settings -> Secrets
+        # Secrets from GitHub
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+        SCRAPINGANT_API_KEYS: ${{ secrets.SCRAPINGANT_API_KEYS }}
         WP_URL: ${{ secrets.WP_URL }}
         WP_USERNAME: ${{ secrets.WP_USERNAME }}
         WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
-        # SCRAPINGANT keys are hardcoded in config.py, so strictly not needed here 
-        # unless you want to move them to secrets later.
-        # N8N_WEBHOOK_URL is also in config.py
+        N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
       run: |
         python main.py
 
-    - name: Commit and Push Changes (Database & Logs)
-      run: |
-        git config --global user.name "GitHub Action Bot"
-        git config --global user.email "actions@github.com"
-        git add amazon_products.db processed_keywords.txt
-        # Only commit if there are changes
-        git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Auto-update database and logs" && git push)
+

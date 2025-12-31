@@ -151,6 +151,14 @@ if query_params.get("start") == "true":
         st.stop() # 🛑 STOP GUI RENDERING HERE
     else:
         st.error("⛔ Invalid Security Key")
+        
+        # DEBUGGING INFO
+        if not AUTO_KEY:
+            st.error("⚠️ CRITICAL ERROR: `AUTO_KEY` is NOT SET in the Server Environment Variables!")
+            st.info("Please go to Render Dashboard -> Environment -> Add `AUTO_KEY`.")
+        else:
+            st.warning(f"Debug: Received '{secret}' but expected '{AUTO_KEY}'")
+            
         st.stop()
 
 # Custom CSS for Modern Glassmorphism Look (Preserved)
