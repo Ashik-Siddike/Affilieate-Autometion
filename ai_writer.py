@@ -168,7 +168,7 @@ def generate_article(product_data, similar_products=None, internal_links=None):
     
     for key_attempt in range(len(GEMINI_API_KEYS)):
         current_key = get_current_gemini_key()
-        key_id = f"{current_key[:10]}..."  # Show partial key for logging
+        key_id = f"...{current_key[-4:]}"  # Show only last 4 chars for safety
         
         # Skip if we've already tried this key (shouldn't happen, but safety check)
         if current_key in keys_tried:

@@ -136,14 +136,19 @@ def get_user_preferences():
     print("\n>>> Configuration confirmed! Starting bot...\n")
     return config
 
-def get_all_unprocessed_keywords():
+def get_all_unprocessed_keywords(site_keywords=None):
     """Returns all unprocessed keywords."""
-    try:
-        with open("keywords.txt", "r") as f:
-            keywords = [line.strip() for line in f.readlines() if line.strip()]
-    except FileNotFoundError:
-        print("❌ Error: keywords.txt not found.")
-        return []
+    # 1. Use site-specific keywords if provided
+    if site_keywords:
+        keywords = [k.strip() for k in site_keywords if k.strip()]
+    else:
+        # Fallback to legacy file
+        try:
+            with open("keywords.txt", "r") as f:
+                keywords = [line.strip() for line in f.readlines() if line.strip()]
+        except FileNotFoundError:
+            print("❌ Error: keywords.txt not found.")
+            return []
 
     try:
         with open("processed_keywords.txt", "r") as f:
@@ -155,24 +160,45 @@ def get_all_unprocessed_keywords():
     return unprocessed
 
 
-def main(config=None, log_function=print):
+def main(config=None, log_function=print, site_config=None):
     log_function("🚀 Starting Amazon Affiliate Automation Bot...\n")
+    
+    if site_config:
+        log_function(f"🌐 Target Site: {site_config.get('name', 'Unknown')}")
     
     # Get User Preferences if not provided
     if not config:
-        config = get_user_preferences()
-        if not config:
-            return
+        # Check for AUTO_MODE environment variable
+        import os
+        if os.getenv("AUTO_MODE", "False").lower() == "true":
+            log_function("🤖 AUTO_MODE detected. Loading default configuration...")
+            config = {
+                'max_keywords': 1,
+                'products_per_keyword': 3,
+                'max_total_articles': 3,
+                'use_comparison': False,
+                'use_internal_links': True,
+                'publish_wp': True,
+                'trigger_n8n': True,
+                'delay_between_products': 5,
+                'delay_between_keywords': 10
+            }
+        else:
+            config = get_user_preferences()
+            if not config:
+                return
     
     # 1. Initialize Database
     database.init_db()
     log_function("✅ Database initialized.\n")
 
     # 2. Get unprocessed keywords
-    unprocessed_keywords = get_all_unprocessed_keywords()
+    # Pass site-specific keywords if available
+    site_keywords = site_config.get('keywords', []) if site_config else None
+    unprocessed_keywords = get_all_unprocessed_keywords(site_keywords)
     
     if not unprocessed_keywords:
-        log_function("❌ No new keywords to process. Add more to keywords.txt")
+        log_function("❌ No new keywords to process for this site.")
         return
 
     # Limit keywords based on user preference
@@ -284,13 +310,16 @@ def main(config=None, log_function=print):
 
             # 7. Publish to WordPress (CONDITIONAL)
             if config['publish_wp']:
-                log_function("🚀 Publishing to WordPress...")
+                log_function(f"🚀 Publishing to WordPress ({site_config.get('name', 'Default') if site_config else 'Default'})...")
                 image_url = product_data.get('image_url')
                 
                 post_link = publisher.publish_post(
                     title=f"Review: {product_data['title'][:50]}...", 
                     content=article_content,
-                    image_url=image_url
+                    image_url=image_url,
+                    wp_url=site_config.get('url') if site_config else None,
+                    wp_username=site_config.get('username') if site_config else None,
+                    wp_password=site_config.get('app_password') if site_config else None
                 )
         
                 if post_link:
@@ -305,26 +334,24 @@ def main(config=None, log_function=print):
                     if config['trigger_n8n']:
                         log_function("📱 Triggering n8n automation for Facebook posting...")
                         social_caption = f"Check out our latest review: {product_data['title']}! #{keyword.replace(' ', '')} #review"
+                        
+                        # Use site-specific webhook if available, otherwise default
+                        webhook_url = site_config.get('n8n_webhook') if site_config and site_config.get('n8n_webhook') else None
+                        
                         n8n_success = n8n_handler.trigger_n8n_workflow(
                             title=product_data['title'],
                             amazon_link=post_link, 
                             image_url=image_url,
                             social_caption=social_caption,
                             category=keyword,
-                            long_description=article_content
+                            long_description=article_content,
+                            webhook_url=webhook_url
                         )
                         if n8n_success:
                             log_function("✅ n8n workflow triggered successfully!")
                             log_function("📱 Facebook post should be published - Check your Facebook page")
-                            log_function("💡 If post not visible, check n8n dashboard: https://ashik-mama.app.n8n.cloud")
-                            log_function("   → Go to 'Executions' tab → Find latest execution → Check 'Post to Facebook1' node")
                         else:
                             log_function("⚠️  n8n workflow failed - Check n8n dashboard for errors")
-                            log_function("🔍 Debug steps:")
-                            log_function("   1. Go to: https://ashik-mama.app.n8n.cloud")
-                            log_function("   2. Check 'Executions' tab for error details")
-                            log_function("   3. Verify Facebook credentials in workflow")
-                            log_function("   4. Run: python debug_n8n_facebook.py")
                             stats['errors'] += 1
                 else:
                     log_function("❌ Publishing failed.")

@@ -2,19 +2,29 @@ import requests
 import base64
 from config import WP_URL, WP_USERNAME, WP_APP_PASSWORD
 
-def get_auth_header():
-    credentials = f"{WP_USERNAME}:{WP_APP_PASSWORD}"
+def get_auth_header(username=None, password=None):
+    # Use provided credentials or fallback to config
+    user = username if username else WP_USERNAME
+    pwd = password if password else WP_APP_PASSWORD
+    
+    if not user or not pwd:
+        print("❌ Error: Missing WordPress credentials.")
+        return None
+        
+    credentials = f"{user}:{pwd}"
     token = base64.b64encode(credentials.encode())
     return {
         'Authorization': f'Basic {token.decode("utf-8")}',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
 
-def upload_media(image_url, title=None):
+def upload_media(image_url, title=None, wp_url=None, wp_username=None, wp_password=None):
     """
     Downloads image from URL and uploads to WordPress.
     Returns the Media ID.
     """
+    target_url = wp_url if wp_url else WP_URL
+    
     try:
         # Download image
         response = requests.get(image_url)
@@ -26,8 +36,11 @@ def upload_media(image_url, title=None):
         content_type = response.headers.get('content-type', 'image/jpeg')
 
         # Upload to WordPress
-        api_url = f"{WP_URL}/wp-json/wp/v2/media"
-        headers = get_auth_header()
+        api_url = f"{target_url}/wp-json/wp/v2/media"
+        headers = get_auth_header(wp_username, wp_password)
+        if not headers:
+            return None
+            
         headers.update({
             "Content-Disposition": f"attachment; filename={filename}",
             "Content-Type": content_type
@@ -45,13 +58,18 @@ def upload_media(image_url, title=None):
         print(f"Error uploading image: {e}")
         return None
 
-def publish_post(title, content, category_id=1, image_url=None):
+def publish_post(title, content, category_id=1, image_url=None, wp_url=None, wp_username=None, wp_password=None):
     """
     Creates a new post in WordPress.
     """
+    target_url = wp_url if wp_url else WP_URL
+    
     try:
-        api_url = f"{WP_URL}/wp-json/wp/v2/posts"
-        headers = get_auth_header()
+        api_url = f"{target_url}/wp-json/wp/v2/posts"
+        headers = get_auth_header(wp_username, wp_password)
+        if not headers:
+            return None
+            
         headers.update({'Content-Type': 'application/json'})
         
         post_data = {
@@ -62,7 +80,7 @@ def publish_post(title, content, category_id=1, image_url=None):
         
         if image_url:
             print(f"Uploading featured image: {image_url}")
-            media_id = upload_media(image_url, title)
+            media_id = upload_media(image_url, title, target_url, wp_username, wp_password)
             if media_id:
                 post_data['featured_media'] = media_id
                 

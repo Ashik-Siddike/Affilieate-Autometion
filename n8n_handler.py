@@ -25,7 +25,7 @@ def extract_text_from_html(html_content, max_length=500):
         return text[:max_length].rsplit(' ', 1)[0] + "..."
     return text
 
-def trigger_n8n_workflow(title, amazon_link, image_url, social_caption, category, long_description):
+def trigger_n8n_workflow(title, amazon_link, image_url, social_caption, category, long_description, webhook_url=None):
     """
     Sends product data to n8n webhook for social media auto-posting.
     
@@ -34,6 +34,9 @@ def trigger_n8n_workflow(title, amazon_link, image_url, social_caption, category
     - description: Short product description (extracted from long_description)
     - amazon_link: Affiliate link
     """
+    # Use provided webhook or fallback to config
+    target_url = webhook_url if webhook_url else N8N_WEBHOOK_URL
+    
     # Extract short description from HTML content for n8n workflow
     description = extract_text_from_html(long_description, max_length=300)
     
@@ -52,10 +55,10 @@ def trigger_n8n_workflow(title, amazon_link, image_url, social_caption, category
     }
 
     try:
-        print(f"📡 Sending data to n8n webhook: {N8N_WEBHOOK_URL}")
+        print(f"📡 Sending data to n8n webhook: {target_url}")
         print(f"   Payload: title='{title[:50]}...', description='{description[:50]}...'")
         
-        response = requests.post(N8N_WEBHOOK_URL, json=payload, timeout=90)  # Increased timeout for AI processing
+        response = requests.post(target_url, json=payload, timeout=90)  # Increased timeout for AI processing
         
         if response.status_code == 200:
             try:
@@ -115,8 +118,8 @@ def trigger_n8n_workflow(title, amazon_link, image_url, social_caption, category
                 
         elif response.status_code == 404:
             print(f"❌ n8n webhook not found (404)")
-            print(f"   URL: {N8N_WEBHOOK_URL}")
-            if "/webhook/" in N8N_WEBHOOK_URL and "/webhook-test/" not in N8N_WEBHOOK_URL:
+            print(f"   URL: {target_url}")
+            if "/webhook/" in target_url and "/webhook-test/" not in target_url:
                 print(f"   💡 Hint: Production URL requires workflow to be ACTIVE in n8n dashboard")
                 print(f"   💡 Make sure workflow 'Master Amazon Social Media Auto-Poster' is toggled ON")
             print(f"   Response: {response.text[:200]}")
@@ -136,7 +139,7 @@ def trigger_n8n_workflow(title, amazon_link, image_url, social_caption, category
         return False
     except requests.exceptions.ConnectionError:
         print(f"❌ Could not connect to n8n webhook")
-        print(f"   URL: {N8N_WEBHOOK_URL}")
+        print(f"   URL: {target_url}")
         print(f"   Check if:")
         print(f"   1. n8n instance is running")
         print(f"   2. URL is correct")

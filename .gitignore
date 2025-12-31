@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+amazon_products.db
+processed_keywords.txt
+error_log.txt

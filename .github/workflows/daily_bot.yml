@@ -1,0 +1,49 @@
+name: Daily Amazon Affiliate Bot
+
+on:
+  schedule:
+    # Runs at 10:00 UTC (4:00 PM BD Time) every day
+    - cron: '0 10 * * *'
+  workflow_dispatch: # Allows manual run button
+
+permissions:
+  contents: write
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Bot (Auto Mode)
+      env:
+        AUTO_MODE: "true"
+        # Secrets must be added in GitHub Repository Settings -> Secrets
+        WP_URL: ${{ secrets.WP_URL }}
+        WP_USERNAME: ${{ secrets.WP_USERNAME }}
+        WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        # SCRAPINGANT keys are hardcoded in config.py, so strictly not needed here 
+        # unless you want to move them to secrets later.
+        # N8N_WEBHOOK_URL is also in config.py
+      run: |
+        python main.py
+
+    - name: Commit and Push Changes (Database & Logs)
+      run: |
+        git config --global user.name "GitHub Action Bot"
+        git config --global user.email "actions@github.com"
+        git add amazon_products.db processed_keywords.txt
+        # Only commit if there are changes
+        git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Auto-update database and logs" && git push)
