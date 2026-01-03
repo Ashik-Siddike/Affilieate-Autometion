@@ -15,7 +15,8 @@ python check_facebook_status.py
 ```bash
 python debug_n8n_facebook.py
 ```
-এই script detailed analysis দেবে
+এই script detailed analysis দেবে 
+hello ashik
 
 ### Step 3: n8n Dashboard Check
 1. Go to: https://ashik-mama.app.n8n.cloud
