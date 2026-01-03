@@ -2,6 +2,9 @@
 
 A powerful, fully automated Python bot designed to build and scale Amazon Affiliate niche sites on autopilot. It discovers products, generates SEO-optimized content with AI, publishes to WordPress, and syndicates to social media via n8n.
 
+**Live Demo:** [https://affilieate-autometion.streamlit.app/](https://affilieate-autometion.streamlit.app/)
+**WordPress Site:** [https://little-angels-hub.wasmer.app/](https://little-angels-hub.wasmer.app/)
+
 ## ✨ Key Features
 
 *   **🔍 Auto-Discovery**: Automatically searches Amazon for profitable products based on your niche keywords.

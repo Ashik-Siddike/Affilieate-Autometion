@@ -4,14 +4,52 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ScrapingAnt API Keys (Rotation Pool)
-# Loaded from .env file (Comma separated)
-_scraping_keys_str = os.getenv("SCRAPINGANT_API_KEYS", "")
+# ScrapingAnt API Keys (Rotation Pool)
+# Loaded from .env file (Comma or newline separated)
+_scraping_keys_str = os.getenv("SCRAPINGANT_API_KEYS", "").replace("\n", ",")
 SCRAPINGANT_API_KEYS = [k.strip() for k in _scraping_keys_str.split(",") if k.strip()]
 
 # Gemini API Keys (Rotation Pool)
-# Loaded from .env file (Comma separated)
-_gemini_keys_str = os.getenv("GEMINI_API_KEYS", "")
-GEMINI_API_KEYS = [k.strip() for k in _gemini_keys_str.split(",") if k.strip()]
+# Gemini API Keys (Rotation Pool)
+# Loaded from .env file (Comma or newline separated)
+# MANUAL PARSNG to handle unquoted newlines in .env
+def load_multiline_gemini_keys():
+    keys = []
+    try:
+        if os.path.exists(".env"):
+            with open(".env", "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            
+            # 1. Isolate the variable block
+            import re
+            match = re.search(r"GEMINI_API_KEYS=(.*?)(?:\n[A-Z_]+=|$\Z)", content, re.DOTALL)
+            
+            if match:
+                raw_block = match.group(1)
+                
+                # 2. Process line by line (Safest)
+                lines = raw_block.split('\n')
+                for line in lines:
+                    # Remove comments
+                    if '#' in line:
+                         line = line.split('#')[0]
+                    
+                    # Split by comma (standard separator)
+                    parts = line.split(',')
+                    
+                    for part in parts:
+                        clean_key = part.strip()
+                        # ST.RICT VALIDATION: Gemini keys typically start with 'AIzaSy'
+                        # This ensures we don't accidentally pick up garbage or split logic
+                        if clean_key.startswith("AIzaSy") and len(clean_key) > 30:
+                             keys.append(clean_key)
+                             
+    except Exception as e:
+        print(f"Error parsing .env manually: {e}")
+        
+    return keys
+
+GEMINI_API_KEYS = load_multiline_gemini_keys()
 
 # Legacy single key support (for backward compatibility)
 GEMINI_API_KEY = GEMINI_API_KEYS[0] if GEMINI_API_KEYS else None

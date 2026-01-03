@@ -25,7 +25,7 @@ def extract_text_from_html(html_content, max_length=500):
         return text[:max_length].rsplit(' ', 1)[0] + "..."
     return text
 
-def trigger_n8n_workflow(title, amazon_link, image_url, social_caption, category, long_description, webhook_url=None):
+def trigger_n8n_workflow(title, amazon_link, image_url, social_caption, category, long_description, webhook_url=None, social_data=None):
     """
     Sends product data to n8n webhook for social media auto-posting.
     
@@ -51,7 +51,12 @@ def trigger_n8n_workflow(title, amazon_link, image_url, social_caption, category
         "image_url": image_url,
         "social_caption": social_caption,
         "category": category,
-        "long_description": long_description  # Keep full HTML for reference
+        "long_description": long_description,
+        # AI Generated Social Bundle
+        "tweet": social_data.get('tweet', '') if social_data else '',
+        "pinterest_title": social_data.get('pinterest_title', '') if social_data else '',
+        "pinterest_desc": social_data.get('pinterest_desc', '') if social_data else '',
+        "linkedin": social_data.get('linkedin', '') if social_data else ''
     }
 
     try:

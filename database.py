@@ -124,6 +124,41 @@ def get_published_posts(limit=5):
         print(f"DB Error (get_posts): {e}")
         return []
 
+def get_relevant_posts(keyword, limit=5):
+    """
+    Fetches contextually relevant posts for internal linking (Silo).
+    Searches for published posts where title contains the keyword.
+    """
+    if not SUPABASE_URL: return []
+    try:
+        request_headers = get_headers()
+        # Basic full-text search simulation using ilike on title
+        # keyword usually is "Best Gaming Laptop", we want to match "Gaming Laptop"
+        # Let's simple split and take the noun or just use the full keyword
+        # Safe approach: ilike %keyword%
+        
+        # Clean keyword slightly
+        clean_kw = keyword.replace(' ', '%') 
+        
+        url = f"{SUPABASE_URL}/rest/v1/products?is_published=eq.true&post_link=not.is.null&title=ilike.*{clean_kw}*&select=title,post_link&order=created_at.desc&limit={limit}"
+        response = requests.get(url, headers=request_headers)
+        data = response.json()
+        
+        # Fallback to recent if specific not found (Simulate Silo filling)
+        if not data or len(data) < 2:
+             print("⚠️ No direct relevant links found. Mixing with recent posts.")
+             recent = get_published_posts(limit=limit)
+             # Merge unique
+             existing_links = {p['post_link'] for p in data} if data else set()
+             for r in recent:
+                 if r['link'] not in existing_links and len(data) < limit:
+                     data.append({'title': r['title'], 'post_link': r['link']})
+        
+        return [{'title': p['title'], 'link': p['post_link']} for p in data]
+    except Exception as e:
+        print(f"DB Error (get_relevant_posts): {e}")
+        return get_published_posts(limit)
+
 def update_post_link(asin, post_link):
     """Updates the post_link for a published product."""
     if not SUPABASE_URL: return

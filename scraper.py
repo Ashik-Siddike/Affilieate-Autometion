@@ -143,6 +143,34 @@ def get_amazon_data(product_url):
     print("All keys failed.")
     return None
 
+def scrape_competitor_text(url):
+    """
+    Scrapes the main text content from a competitor URL.
+    Returns truncated text suitable for AI context.
+    """
+    print(f"🕵️ Scraping Competitor: {url}")
+    for api_key in SCRAPINGANT_API_KEYS:
+        try:
+            response = requests.get(
+                "https://api.scrapingant.com/v2/general",
+                params={'url': url, 'browser': 'true'}, # Javascript support for modern blogs
+                headers={'x-api-key': api_key},
+                timeout=60
+            )
+            if response.status_code == 200:
+                html = response.text
+                # Simple cleanup: Remove scripts, styles, nav, footer
+                clean_text = re.sub(r'<(script|style|nav|footer|header).*?>.*?</\1>', '', html, flags=re.DOTALL)
+                clean_text = re.sub(r'<[^>]+>', ' ', clean_text) # Strip remaining tags
+                clean_text = re.sub(r'\s+', ' ', clean_text).strip() # Normalize whitespace
+                
+                # Limit to 5000 chars for context
+                return clean_text[:5000]
+        except Exception as e:
+            print(f"Competitor scrape error: {e}")
+            continue
+    return None
+
 def search_amazon(keyword, limit=3):
     """
     Searches Amazon for a keyword and returns a list of product URLs.

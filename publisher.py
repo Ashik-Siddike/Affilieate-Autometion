@@ -58,7 +58,7 @@ def upload_media(image_url, title=None, wp_url=None, wp_username=None, wp_passwo
         print(f"Error uploading image: {e}")
         return None
 
-def publish_post(title, content, category_id=1, image_url=None, wp_url=None, wp_username=None, wp_password=None):
+def publish_post(title, content, category_id=1, image_url=None, wp_url=None, wp_username=None, wp_password=None, status="publish", publish_date=None):
     """
     Creates a new post in WordPress.
     """
@@ -75,9 +75,13 @@ def publish_post(title, content, category_id=1, image_url=None, wp_url=None, wp_
         post_data = {
             'title': title,
             'content': content,
-            'status': 'publish' # or 'draft'
+            'status': status
         }
         
+        if publish_date:
+            post_data['date'] = publish_date
+            post_data['status'] = 'future'
+
         if image_url:
             print(f"Uploading featured image: {image_url}")
             media_id = upload_media(image_url, title, target_url, wp_username, wp_password)
@@ -87,7 +91,7 @@ def publish_post(title, content, category_id=1, image_url=None, wp_url=None, wp_
         response = requests.post(api_url, json=post_data, headers=headers)
         
         if response.status_code == 201:
-            print(f"Post published successfully: {title}")
+            print(f"Post published/scheduled successfully: {title}")
             return response.json().get('link')
         else:
             print(f"Failed to create post: {response.status_code} - {response.text}")

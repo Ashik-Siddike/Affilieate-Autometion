@@ -5,6 +5,8 @@ import ai_writer
 import publisher
 import schema_helper
 import n8n_handler
+from datetime import datetime, timedelta
+from seo_utils import SEOChecker
 
 # List of Test URLs (Example: Nike Shoes or similar)
 TEST_URLS = [
@@ -202,8 +204,9 @@ def main(config=None, log_function=print, site_config=None):
         return
 
     # Limit keywords based on user preference
-    keywords_to_process = unprocessed_keywords[:config['max_keywords']]
-    log_function(f"📋 Processing {len(keywords_to_process)} keyword(s) from {len(unprocessed_keywords)} available\n")
+    # MODIFIED: We iterate through ALL and stop when we successfully process 'max_keywords'
+    keywords_to_process = unprocessed_keywords
+    log_function(f"📋 Queued {len(unprocessed_keywords)} unprocessed keywords. Target: Process {config['max_keywords']} successfully.\n")
 
     # Track statistics
     stats = {
@@ -213,8 +216,34 @@ def main(config=None, log_function=print, site_config=None):
         'errors': 0
     }
 
+    # SEO and Schedule Init
+    seo_checker = SEOChecker()
+    next_publish_time = datetime.now()
+    interval_minutes = config.get('interval_minutes', 0)
+
+    processed_successful_count = 0
+
+    processed_successful_count = 0
+
+    # Skyscraper Mode: Fetch Competitor Content
+    global_competitor_text = None
+    if config.get('competitor_url'):
+        log_function(f"🕵️ Skyscraper Mode: Fetching {config['competitor_url']}...")
+        try:
+             global_competitor_text = scraper.scrape_competitor_text(config['competitor_url'])
+             if global_competitor_text:
+                  log_function(f"✅ Competitor content captured ({len(global_competitor_text)} chars).")
+             else:
+                  log_function("⚠️ Content extraction failed. Proceeding without reference.")
+        except Exception as e:
+             log_function(f"❌ Scraping error: {e}")
+
     # Process each keyword
     for keyword_idx, keyword in enumerate(keywords_to_process, 1):
+        # Stop if we hit the limit of SUCCESSFUL keywords
+        if processed_successful_count >= config['max_keywords']:
+            log_function(f"✅ Reached keyword limit ({config['max_keywords']}). Finishing batch.")
+            break
         # Check if we've reached max articles limit
         if config['max_total_articles'] > 0 and stats['articles_generated'] >= config['max_total_articles']:
             log_function(f"\n⚠️  Reached maximum article limit ({config['max_total_articles']}). Stopping.")
@@ -290,10 +319,17 @@ def main(config=None, log_function=print, site_config=None):
                 
             internal_links = None
             if config['use_internal_links']:
-                internal_links = database.get_published_posts(limit=5)
-                log_function(f"🔗 Using {len(internal_links)} internal links")
+                # Smart Silo Linking (Contextual)
+                internal_links = database.get_relevant_posts(keyword=keyword, limit=5)
+                log_function(f"🔗 Using {len(internal_links)} contextual internal links for Silo")
             
-            article_content = ai_writer.generate_article(product_data, similar_products, internal_links)
+            article_content, social_data = ai_writer.generate_article(
+                product_data, 
+                similar_products, 
+                internal_links, 
+                language=config.get('language', 'English'),
+                competitor_text=global_competitor_text
+            )
             
             if not article_content:
                 log_function("❌ Failed to generate article. Skipping.")
@@ -302,6 +338,12 @@ def main(config=None, log_function=print, site_config=None):
 
             stats['articles_generated'] += 1
             log_function(f"✅ Article generated successfully! ({stats['articles_generated']}/{config['max_total_articles'] if config['max_total_articles'] > 0 else '∞'})")
+
+            # 6b. SEO Analysis
+            seo_result = seo_checker.analyze(article_content, keyword)
+            log_function(f"📈 SEO Score: {seo_result['score']}/100")
+            if seo_result['feedback']:
+                 log_function(f"   Tips: {' | '.join(seo_result['feedback'][:2])}")
 
             # 6.5 Generate Schema
             log_function("📋 Generating JSON-LD Schema...")
@@ -313,13 +355,30 @@ def main(config=None, log_function=print, site_config=None):
                 log_function(f"🚀 Publishing to WordPress ({site_config.get('name', 'Default') if site_config else 'Default'})...")
                 image_url = product_data.get('image_url')
                 
+                # Scheduling Logic
+                publish_status = 'publish'
+                publish_date_iso = None
+                
+                if interval_minutes > 0:
+                    # Calculate future time
+                    # Logic: If it's the first post, maybe publish now? Or start schedule from now + interval?
+                    # Let's say first post is NOW, subsequent are spaced.
+                    # Or simpler: All are spaced from now.
+                    # Let's add interval for even the first one to avoid immediate blast if user wants schedule.
+                    next_publish_time += timedelta(minutes=interval_minutes)
+                    publish_date_iso = next_publish_time.strftime("%Y-%m-%dT%H:%M:%S")
+                    publish_status = 'future'
+                    log_function(f"🕒 Scheduled for: {publish_date_iso}")
+
                 post_link = publisher.publish_post(
                     title=f"Review: {product_data['title'][:50]}...", 
                     content=article_content,
                     image_url=image_url,
                     wp_url=site_config.get('url') if site_config else None,
                     wp_username=site_config.get('username') if site_config else None,
-                    wp_password=site_config.get('app_password') if site_config else None
+                    wp_password=site_config.get('app_password') if site_config else None,
+                    status=publish_status,
+                    publish_date=publish_date_iso
                 )
         
                 if post_link:
@@ -340,12 +399,13 @@ def main(config=None, log_function=print, site_config=None):
                         
                         n8n_success = n8n_handler.trigger_n8n_workflow(
                             title=product_data['title'],
-                            amazon_link=post_link, 
+                            amazon_link=product_data['product_url'],
                             image_url=image_url,
                             social_caption=social_caption,
                             category=keyword,
                             long_description=article_content,
-                            webhook_url=webhook_url
+                            webhook_url=webhook_url,
+                            social_data=social_data # Pass the AI generated bundle
                         )
                         if n8n_success:
                             log_function("✅ n8n workflow triggered successfully!")
@@ -377,6 +437,9 @@ def main(config=None, log_function=print, site_config=None):
         if keyword_idx < len(keywords_to_process) and config['delay_between_keywords'] > 0:
             log_function(f"\n⏸️  Waiting {config['delay_between_keywords']} seconds before next keyword...")
             time.sleep(config['delay_between_keywords'])
+            
+        # Increment success count only after processing
+        processed_successful_count += 1
     
     # Final Summary
     log_function("\n" + "="*70)
