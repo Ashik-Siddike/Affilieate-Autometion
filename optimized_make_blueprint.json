@@ -1,0 +1,466 @@
+{
+    "name": "Affiliate Social Bot (Optimized)",
+    "flow": [
+        {
+            "id": 4,
+            "module": "gateway:CustomWebHook",
+            "version": 1,
+            "parameters": {
+                "hook": 1903459,
+                "maxResults": 1
+            },
+            "mapper": {},
+            "metadata": {
+                "designer": {
+                    "x": 0,
+                    "y": 300
+                },
+                "restore": {
+                    "parameters": {
+                        "hook": {
+                            "data": {
+                                "editable": "true"
+                            },
+                            "label": "Social Media Bot"
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "hook",
+                        "type": "hook:gateway-webhook",
+                        "label": "Webhook",
+                        "required": true
+                    },
+                    {
+                        "name": "maxResults",
+                        "type": "number",
+                        "label": "Maximum number of results"
+                    }
+                ],
+                "interface": [
+                    {
+                        "name": "main_title",
+                        "type": "text"
+                    },
+                    {
+                        "name": "wp_link",
+                        "type": "text"
+                    },
+                    {
+                        "name": "image_url",
+                        "type": "text"
+                    },
+                    {
+                        "name": "fb_content",
+                        "type": "text"
+                    },
+                    {
+                        "name": "pin_title",
+                        "type": "text"
+                    },
+                    {
+                        "name": "pin_desc",
+                        "type": "text"
+                    },
+                    {
+                        "name": "ig_content",
+                        "type": "text"
+                    },
+                    {
+                        "name": "x_content",
+                        "type": "text"
+                    }
+                ]
+            }
+        },
+        {
+            "id": 6,
+            "module": "builtin:BasicRouter",
+            "version": 1,
+            "mapper": null,
+            "metadata": {
+                "designer": {
+                    "x": 300,
+                    "y": 300
+                }
+            },
+            "routes": [
+                {
+                    "flow": [
+                        {
+                            "id": 19,
+                            "module": "facebook-pages:CreatePost",
+                            "version": 6,
+                            "parameters": {
+                                "__IMTCONN__": 7484982
+                            },
+                            "mapper": {
+                                "link": "{{4.wp_link}}",
+                                "message": "{{ifempty(4.fb_content; \"Check out our latest product review!\")}}",
+                                "page_id": "1006261659234628"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 600,
+                                    "y": 0
+                                },
+                                "restore": {
+                                    "expect": {
+                                        "page_id": {
+                                            "mode": "chose",
+                                            "label": "Whit Logic (Narail)"
+                                        }
+                                    },
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "facebook"
+                                            },
+                                            "label": "My Facebook connection (Ashik Siddike)"
+                                        }
+                                    }
+                                },
+                                "parameters": [
+                                    {
+                                        "name": "__IMTCONN__",
+                                        "type": "account:facebook",
+                                        "label": "Connection",
+                                        "required": true
+                                    }
+                                ],
+                                "expect": [
+                                    {
+                                        "name": "page_id",
+                                        "type": "select",
+                                        "label": "Page",
+                                        "required": true
+                                    },
+                                    {
+                                        "name": "message",
+                                        "type": "text",
+                                        "label": "Post caption"
+                                    },
+                                    {
+                                        "name": "link",
+                                        "type": "url",
+                                        "label": "Link"
+                                    },
+                                    {
+                                        "name": "name",
+                                        "type": "text",
+                                        "label": "Link name"
+                                    },
+                                    {
+                                        "name": "description",
+                                        "type": "text",
+                                        "label": "Link description"
+                                    },
+                                    {
+                                        "name": "date",
+                                        "type": "date",
+                                        "label": "Publish date"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "flow": [
+                        {
+                            "id": 21,
+                            "module": "pinterest:createPin",
+                            "version": 2,
+                            "parameters": {
+                                "__IMTCONN__": 7485033
+                            },
+                            "mapper": {
+                                "link": "{{4.wp_link}}",
+                                "title": "{{ifempty(4.pin_title; 4.main_title)}}",
+                                "board_id": "1114359570238404947",
+                                "description": "{{ifempty(4.pin_desc; 4.main_title)}}",
+                                "media_source": {
+                                    "url": "{{ifempty(4.image_url; \"https://dummyimage.com/800x800/eeeeee/333333.jpg&text=Product+Image\")}}",
+                                    "source_type": "image_url"
+                                }
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 600,
+                                    "y": 300
+                                },
+                                "restore": {
+                                    "expect": {
+                                        "board_id": {
+                                            "mode": "chose",
+                                            "label": "Whit Logic"
+                                        },
+                                        "media_source": {
+                                            "nested": {
+                                                "is_standard": {
+                                                    "mode": "chose"
+                                                },
+                                                "source_type": {
+                                                    "mode": "chose",
+                                                    "label": "Image URL"
+                                                }
+                                            }
+                                        },
+                                        "ad_account_id": {
+                                            "mode": "chose",
+                                            "label": "Empty"
+                                        },
+                                        "parent_pin_id": {
+                                            "mode": "chose",
+                                            "label": "Empty"
+                                        },
+                                        "board_section_id": {
+                                            "mode": "chose",
+                                            "label": "Empty"
+                                        }
+                                    },
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "pinterest2"
+                                            },
+                                            "label": "My pinterest connection"
+                                        }
+                                    }
+                                },
+                                "parameters": [
+                                    {
+                                        "name": "__IMTCONN__",
+                                        "type": "account:pinterest2",
+                                        "label": "Connection",
+                                        "required": true
+                                    }
+                                ],
+                                "expect": [
+                                    {
+                                        "name": "media_source",
+                                        "spec": [
+                                            {
+                                                "name": "source_type",
+                                                "type": "select",
+                                                "label": "Source Type",
+                                                "required": true,
+                                                "validate": {
+                                                    "enum": [
+                                                        "video_id",
+                                                        "image_url",
+                                                        "multiple_image_urls",
+                                                        "image_base64",
+                                                        "multiple_image_base64"
+                                                    ]
+                                                }
+                                            },
+                                            {
+                                                "name": "url",
+                                                "type": "url",
+                                                "label": "Image URL",
+                                                "required": true
+                                            },
+                                            {
+                                                "name": "is_standard",
+                                                "type": "boolean",
+                                                "label": "Is Standard"
+                                            }
+                                        ],
+                                        "type": "collection",
+                                        "label": "Media Source",
+                                        "required": true
+                                    },
+                                    {
+                                        "name": "board_id",
+                                        "type": "select",
+                                        "label": "Board",
+                                        "required": true
+                                    },
+                                    {
+                                        "name": "title",
+                                        "type": "text",
+                                        "label": "Pin Name"
+                                    },
+                                    {
+                                        "name": "description",
+                                        "type": "text",
+                                        "label": "Description",
+                                        "validate": {
+                                            "max": 800
+                                        }
+                                    },
+                                    {
+                                        "name": "link",
+                                        "type": "url",
+                                        "label": "Link"
+                                    },
+                                    {
+                                        "name": "alt_text",
+                                        "type": "text",
+                                        "label": "Alternative Text"
+                                    },
+                                    {
+                                        "name": "dominant_color",
+                                        "type": "color",
+                                        "label": "Dominant Color"
+                                    },
+                                    {
+                                        "name": "parent_pin_id",
+                                        "type": "select",
+                                        "label": "Parent Pin"
+                                    },
+                                    {
+                                        "name": "ad_account_id",
+                                        "type": "select",
+                                        "label": "Ad Account"
+                                    },
+                                    {
+                                        "name": "board_section_id",
+                                        "type": "select",
+                                        "label": "Board Section"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "flow": [
+                        {
+                            "id": 23,
+                            "module": "instagram-business:CreatePostPhoto",
+                            "version": 1,
+                            "parameters": {
+                                "__IMTCONN__": 7484982
+                            },
+                            "mapper": {
+                                "caption": "{{ifempty(4.ig_content; \"Checkout the link in our bio for this product!\")}}",
+                                "accountId": "17841478132944793",
+                                "image_url": "{{ifempty(4.image_url; \"https://dummyimage.com/800x800/eeeeee/333333.jpg&text=Product+Image\")}}"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 600,
+                                    "y": 600
+                                },
+                                "restore": {
+                                    "expect": {
+                                        "accountId": {
+                                            "mode": "chose",
+                                            "label": "Little Angels Hub (Jessore) (@whitlogic)"
+                                        },
+                                        "user_tags": {
+                                            "mode": "chose"
+                                        }
+                                    },
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "facebook"
+                                            },
+                                            "label": "My Facebook connection (Ashik Siddike)"
+                                        }
+                                    }
+                                },
+                                "parameters": [
+                                    {
+                                        "name": "__IMTCONN__",
+                                        "type": "account:facebook",
+                                        "label": "Connection",
+                                        "required": true
+                                    }
+                                ],
+                                "expect": [
+                                    {
+                                        "name": "accountId",
+                                        "type": "select",
+                                        "label": "Page",
+                                        "required": true
+                                    },
+                                    {
+                                        "name": "image_url",
+                                        "type": "url",
+                                        "label": "Photo URL",
+                                        "required": true
+                                    },
+                                    {
+                                        "name": "caption",
+                                        "type": "text",
+                                        "label": "Caption"
+                                    },
+                                    {
+                                        "name": "user_tags",
+                                        "spec": [
+                                            {
+                                                "name": "username",
+                                                "type": "text",
+                                                "label": "Username",
+                                                "required": true,
+                                                "validate": {
+                                                    "pattern": "^(?!@)"
+                                                }
+                                            },
+                                            {
+                                                "name": "x",
+                                                "type": "number",
+                                                "label": "X position",
+                                                "required": true,
+                                                "validate": {
+                                                    "max": 1,
+                                                    "min": 0
+                                                }
+                                            },
+                                            {
+                                                "name": "y",
+                                                "type": "number",
+                                                "label": "Y position",
+                                                "required": true,
+                                                "validate": {
+                                                    "max": 1,
+                                                    "min": 0
+                                                }
+                                            }
+                                        ],
+                                        "type": "array",
+                                        "label": "User Tags"
+                                    },
+                                    {
+                                        "name": "location_id",
+                                        "type": "text",
+                                        "label": "Location ID"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "metadata": {
+        "instant": true,
+        "version": 1,
+        "scenario": {
+            "roundtrips": 1,
+            "maxErrors": 3,
+            "autoCommit": true,
+            "autoCommitTriggerLast": true,
+            "sequential": false,
+            "slots": null,
+            "confidential": false,
+            "dataloss": false,
+            "dlq": false,
+            "freshVariables": false
+        },
+        "designer": {
+            "orphans": []
+        },
+        "zone": "us2.make.com",
+        "notes": []
+    }
+}

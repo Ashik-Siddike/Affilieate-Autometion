@@ -62,7 +62,10 @@ WP_APP_PASSWORD = os.getenv("WP_APP_PASSWORD", "h9lp oh9Z 6fKi C5bx RoZr z3jl")
 # n8n Webhook URL (PRODUCTION)
 # Important: Production URL requires workflow to be ACTIVE in n8n dashboard
 # If you get 404 error, make sure the workflow is toggled ON in n8n
-N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "https://ashik-mama.app.n8n.cloud/webhook/amazon-master-webhook")
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "")
+
+# Make.com Webhook URL (For new social media automation)
+MAKE_WEBHOOK_URL = os.getenv("MAKE_WEBHOOK_URL", "https://n8n.srv915514.hstgr.cloud/webhook/amazon-master-webhook")
 
 # Niche Keywords for Auto-Discovery
 NICHE_KEYWORDS = [

@@ -4,7 +4,8 @@ import database
 import ai_writer
 import publisher
 import schema_helper
-import n8n_handler
+import make_handler
+# import n8n_handler (Deprecated)
 from datetime import datetime, timedelta
 from seo_utils import SEOChecker
 
@@ -370,7 +371,7 @@ def main(config=None, log_function=print, site_config=None):
                     publish_status = 'future'
                     log_function(f"🕒 Scheduled for: {publish_date_iso}")
 
-                post_link = publisher.publish_post(
+                publish_result = publisher.publish_post(
                     title=f"Review: {product_data['title'][:50]}...", 
                     content=article_content,
                     image_url=image_url,
@@ -381,6 +382,12 @@ def main(config=None, log_function=print, site_config=None):
                     publish_date=publish_date_iso
                 )
         
+                if isinstance(publish_result, tuple):
+                    post_link, wp_image_url = publish_result
+                else:
+                    post_link = publish_result
+                    wp_image_url = None
+
                 if post_link:
                     log_function(f"✅ Published at: {post_link}")
                     stats['articles_published'] += 1
@@ -389,29 +396,35 @@ def main(config=None, log_function=print, site_config=None):
                     database.mark_as_published(asin)
                     database.update_post_link(asin, post_link)
         
-                    # 9. Trigger n8n Automation (CONDITIONAL)
-                    if config['trigger_n8n']:
-                        log_function("📱 Triggering n8n automation for Facebook posting...")
-                        social_caption = f"Check out our latest review: {product_data['title']}! #{keyword.replace(' ', '')} #review"
+                    # 9. Trigger Make.com Automation (Replaces n8n)
+                    if config['trigger_n8n']: # Variable name kept for compatibility, but triggers Make.com
+                        log_function("📱 Triggering Make.com automation for Social Media...")
                         
-                        # Use site-specific webhook if available, otherwise default
+                        # Fallback to WordPress image, then Amazon image, then dummy placeholder
+                        make_image_url = wp_image_url if wp_image_url else (image_url if image_url else "https://dummyimage.com/800x800/eeeeee/333333.jpg&text=Product+Image")
+
+                        # Construct Payload
+                        make_payload = {
+                            "main_title": product_data.get('title', ''),
+                            "wp_link": post_link,
+                            "image_url": make_image_url,
+                            "fb_content": social_data.get('fb_content', ''),
+                            "pin_title": social_data.get('pin_title', ''),
+                            "pin_desc": social_data.get('pin_desc', ''),
+                            "ig_content": social_data.get('ig_content', ''),
+                            "x_content": social_data.get('x_content', '')
+                        }
+                        
+                        # Use site-specific webhook if available
                         webhook_url = site_config.get('n8n_webhook') if site_config and site_config.get('n8n_webhook') else None
                         
-                        n8n_success = n8n_handler.trigger_n8n_workflow(
-                            title=product_data['title'],
-                            amazon_link=product_data['product_url'],
-                            image_url=image_url,
-                            social_caption=social_caption,
-                            category=keyword,
-                            long_description=article_content,
-                            webhook_url=webhook_url,
-                            social_data=social_data # Pass the AI generated bundle
-                        )
-                        if n8n_success:
-                            log_function("✅ n8n workflow triggered successfully!")
-                            log_function("📱 Facebook post should be published - Check your Facebook page")
+                        make_success = make_handler.send_to_make_webhook(make_payload, webhook_url=webhook_url)
+                        
+                        if make_success:
+                            log_function("✅ Make.com webhook triggered successfully!")
+                            log_function("🚀 Content sent to Facebook, Pinterest, Instagram, and X.")
                         else:
-                            log_function("⚠️  n8n workflow failed - Check n8n dashboard for errors")
+                            log_function("⚠️  Make.com webhook failed - Check console logs.")
                             stats['errors'] += 1
                 else:
                     log_function("❌ Publishing failed.")

@@ -134,16 +134,18 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
     
     # Construct Context Data
     comparison_text = ""
-    if similar_products:
+    if similar_products and isinstance(similar_products, list):
         comparison_text = "### 📊 Comparison Data:\n"
         for p in similar_products:
-            comparison_text += f"- Compare with: {p.get('title')} | Price: {p.get('price')} | Rating: {p.get('rating')}\n"
+            if isinstance(p, dict):
+                comparison_text += f"- Compare with: {p.get('title', 'Unknown')} | Price: {p.get('price', 'N/A')} | Rating: {p.get('rating', 'N/A')}\n"
     
     links_text = ""
-    if internal_links:
+    if internal_links and isinstance(internal_links, list):
         links_text = "### 🔗 Internal Links Context:\n"
         for p in internal_links:
-            links_text += f"- Link Title: '{p.get('title')}' -> URL: {p.get('link')}\n"
+            if isinstance(p, dict):
+                links_text += f"- Link Title: '{p.get('title', 'Link')}' -> URL: {p.get('link', '#')}\n"
 
     # --- 🎥 VIDEO SEARCH ---
     video_embed_code = find_review_video(title)
@@ -255,18 +257,21 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
     - Output raw HTML body only (no ```html tags).
     - Use <h2>, <h3>, <p>, <ul>, <li>, <strong>.
 
-    **10. 📢 Social Media Bundle (JSON)**
-    - At the VERY END, generate a strictly valid JSON block for social media.
-    - Format:
+    **10. 📢 Premium Social Media Bundle (JSON)**
+    - At the VERY END, generate a strictly valid JSON block.
+    - Write the social media copy with the SAME intelligence, depth, and human-like quality as the main article.
+    - Use advanced copywriting frameworks (AIDA, PAS). Act like a top-tier social media influencer and conversion copywriter.
+    - Format exactly like this:
     ```json
     {{
-      "tweet": "Create a viral, click-baity tweet (max 280 chars) with hashtags.",
-      "pinterest_title": "A catchy title for a Pin.",
-      "pinterest_desc": "SEO-optimized description for Pinterest (100 words).",
-      "linkedin": "A professional but engaging LinkedIn post summary."
+      "fb_content": "🔥 [ATTENTION HOOK]\nStart with a highly relatable, contrarian, or thought-provoking statement that stops the scroll.\n\n💬 [BRIDGE/STORY]\nWrite 2-3 short, punchy paragraphs explaining the core problem and how this product is the ultimate solution. Be authentic, engaging, and smart. Use spacing for readability.\n\n👇 [CALL TO ACTION]\nGive them a clear, irresistible reason to click the link right now.\n\n#HighlyRelevant1 #HighlyRelevant2",
+      "pin_title": "Catchy SEO Title for Pinterest (Max 90 chars)",
+      "pin_desc": "Keyword-rich description highlighting the main benefit. Use bullet points. End with strong CTA: 'Save this pin & check the link to grab yours today!' #TargetKeyword1 #TargetKeyword2",
+      "ig_content": "✨ [STORYTELLING HOOK]\nStart with an engaging micro-story or a bold statement about a lifestyle upgrade.\n\n[VALUE DRIVEN BODY]\nBreak down WHY this product changes the game using bullet points or short, aesthetic paragraphs. Speak directly to their desires and pain points. Keep it visually structured.\n\n🔗 [BIO CTA]\nTell them exactly what to do next: 'Click the LINK IN BIO to check out the {title} and upgrade your setup!'\n\n#NicheHashtag1 #NicheHashtag2 (15-20 highly targeted hashtags)",
+      "x_content": "🚨 Don't miss out on the {title}! The ultimate solution for [Main Benefit]. \n\nCheck out why we recommend it 👇\n{product_link} \n\n#Hashtag1 #Hashtag2"
     }}
     ```
-    - Ensure this JSON is valid and separated from the HTML.
+    - Ensure this JSON is strictly valid, properly quoted, and completely separated from the HTML above it.
     """
 
     api_key = get_current_gemini_key()

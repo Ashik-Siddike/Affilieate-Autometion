@@ -7,7 +7,7 @@ import requests
 import serp_checker
 import keyword_spy
 from main import main as run_bot
-from config import NICHE_KEYWORDS, WP_URL, SCRAPINGANT_API_KEYS, GEMINI_API_KEYS, N8N_WEBHOOK_URL, WP_USERNAME, WP_APP_PASSWORD, SUPABASE_URL, SUPABASE_KEY, AUTO_KEY
+from config import NICHE_KEYWORDS, WP_URL, SCRAPINGANT_API_KEYS, GEMINI_API_KEYS, N8N_WEBHOOK_URL, MAKE_WEBHOOK_URL, WP_USERNAME, WP_APP_PASSWORD, SUPABASE_URL, SUPABASE_KEY, AUTO_KEY
 
 # ==========================================
 # 🛠️ HELPER FUNCTIONS (SUPABASE REST)
@@ -459,6 +459,23 @@ else:
 # ==========================================
 sites = load_sites()
 
+# --- INJECT DEFAULT SITE FROM .ENV (WHIT LOGIC) IF MISSING ---
+default_site_name = "Whit Logic"
+has_default = any(s.get('name') == default_site_name for s in sites)
+
+if not has_default and WP_URL and WP_USERNAME:
+    default_site_data = {
+        'id': 0,
+        'name': default_site_name,
+        'url': WP_URL,
+        'username': WP_USERNAME,
+        'app_password': WP_APP_PASSWORD,
+        'n8n_webhook': MAKE_WEBHOOK_URL, # Use new Make.com webhook for default site
+        'keywords': []
+    }
+    sites.insert(0, default_site_data)
+# -------------------------------------------------------------
+
 # Hide Sidebar (CSS) or just keep it empty/minimal
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/4712/4712035.png", width=50)
@@ -538,11 +555,11 @@ with tab2:
                 new_url = st.text_input("WP URL")
                 new_user = st.text_input("Username")
                 new_pass = st.text_input("App Password", type="password")
-                new_n8n = st.text_input("n8n Webhook (Optional)")
+                new_n8n = st.text_input("Make.com Webhook (Optional)")
                 
                 if st.form_submit_button("Add Site"):
                     if new_name and new_url:
-                        if add_site(new_name, new_url, new_user, new_pass, new_n8n):
+                        if add_site(new_name, new_url, new_user, new_pass, new_n8n): # Variable name kept for DB compatibility
                             st.success("Site Added!")
                             st.rerun()
         
@@ -660,7 +677,7 @@ with tab1:
             enable_internal_links = st.toggle("Internal Links", value=True)
             auto_publish_wp = st.toggle("Publish to WP", value=True)
         with t2:
-            enable_n8n = st.toggle("n8n Auto-Post", value=False)
+            enable_n8n = st.toggle("Make.com Trig", value=True)
             enable_comparison = st.toggle("Comparison Table", value=False)
             
         st.divider()

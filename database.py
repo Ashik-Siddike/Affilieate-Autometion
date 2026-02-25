@@ -100,7 +100,10 @@ def get_similar_products(current_asin, limit=2):
         response = requests.get(url, headers=get_headers())
         products = response.json()
         
-        if not products: return []
+        if not products or not isinstance(products, list): 
+            if isinstance(products, dict):
+                print(f"DB Error (similar): {products}")
+            return []
         
         if len(products) > limit:
             return random.sample(products, limit)
@@ -145,16 +148,23 @@ def get_relevant_posts(keyword, limit=5):
         data = response.json()
         
         # Fallback to recent if specific not found (Simulate Silo filling)
-        if not data or len(data) < 2:
+        if not data or not isinstance(data, list):
+             # Handle error response or empty
+             if isinstance(data, dict):
+                 print(f"DB Unknown Response: {data}")
              print("⚠️ No direct relevant links found. Mixing with recent posts.")
              recent = get_published_posts(limit=limit)
+             
+             # If data is bad, reset it
+             if not isinstance(data, list): data = []
+             
              # Merge unique
-             existing_links = {p['post_link'] for p in data} if data else set()
+             existing_links = {p.get('post_link') for p in data if isinstance(p, dict)}
              for r in recent:
-                 if r['link'] not in existing_links and len(data) < limit:
-                     data.append({'title': r['title'], 'post_link': r['link']})
+                 if r.get('link') not in existing_links and len(data) < limit:
+                     data.append({'title': r.get('title'), 'post_link': r.get('link')})
         
-        return [{'title': p['title'], 'link': p['post_link']} for p in data]
+        return [{'title': p.get('title'), 'link': p.get('post_link')} for p in data if isinstance(p, dict)]
     except Exception as e:
         print(f"DB Error (get_relevant_posts): {e}")
         return get_published_posts(limit)

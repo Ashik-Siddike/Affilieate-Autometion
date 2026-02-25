@@ -49,14 +49,15 @@ def upload_media(image_url, title=None, wp_url=None, wp_username=None, wp_passwo
         wp_response = requests.post(api_url, data=response.content, headers=headers)
         
         if wp_response.status_code == 201:
-            return wp_response.json().get('id')
+            data = wp_response.json()
+            return data.get('id'), data.get('source_url')
         else:
             print(f"WP Upload Failed: {wp_response.status_code} - {wp_response.text}")
-            return None
+            return None, None
 
     except Exception as e:
         print(f"Error uploading image: {e}")
-        return None
+        return None, None
 
 def publish_post(title, content, category_id=1, image_url=None, wp_url=None, wp_username=None, wp_password=None, status="publish", publish_date=None):
     """
@@ -82,9 +83,10 @@ def publish_post(title, content, category_id=1, image_url=None, wp_url=None, wp_
             post_data['date'] = publish_date
             post_data['status'] = 'future'
 
+        wp_image_url = None
         if image_url:
             print(f"Uploading featured image: {image_url}")
-            media_id = upload_media(image_url, title, target_url, wp_username, wp_password)
+            media_id, wp_image_url = upload_media(image_url, title, target_url, wp_username, wp_password)
             if media_id:
                 post_data['featured_media'] = media_id
                 
@@ -92,10 +94,10 @@ def publish_post(title, content, category_id=1, image_url=None, wp_url=None, wp_
         
         if response.status_code == 201:
             print(f"Post published/scheduled successfully: {title}")
-            return response.json().get('link')
+            return response.json().get('link'), wp_image_url
         else:
             print(f"Failed to create post: {response.status_code} - {response.text}")
-            return None
+            return None, None
 
     except Exception as e:
         print(f"Error creating post: {e}")
