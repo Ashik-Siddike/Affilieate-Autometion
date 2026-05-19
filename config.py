@@ -14,39 +14,45 @@ SCRAPINGANT_API_KEYS = [k.strip() for k in _scraping_keys_str.split(",") if k.st
 # Loaded from .env file (Comma or newline separated)
 # MANUAL PARSNG to handle unquoted newlines in .env
 def load_multiline_gemini_keys():
+    """
+    Loads Gemini API keys with two strategies:
+    1. Railway/Server: reads GEMINI_API_KEYS from environment variable directly
+    2. Local dev: parses multi-line format from .env file
+    """
+    import re
+
+    # ── Strategy 1: Environment variable (Railway, Render, etc.) ──
+    env_val = os.getenv("GEMINI_API_KEYS", "").strip()
+    if env_val:
+        keys = []
+        for part in env_val.replace("\n", ",").split(","):
+            clean = part.strip()
+            if clean.startswith("AIzaSy") and len(clean) > 30:
+                keys.append(clean)
+        if keys:
+            print(f"[CONFIG] Loaded {len(keys)} Gemini key(s) from environment.")
+            return keys
+
+    # ── Strategy 2: Parse .env file (local development) ──
     keys = []
     try:
         if os.path.exists(".env"):
             with open(".env", "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
-            
-            # 1. Isolate the variable block
-            import re
+
             match = re.search(r"GEMINI_API_KEYS=(.*?)(?:\n[A-Z_]+=|$\Z)", content, re.DOTALL)
-            
             if match:
                 raw_block = match.group(1)
-                
-                # 2. Process line by line (Safest)
-                lines = raw_block.split('\n')
-                for line in lines:
-                    # Remove comments
+                for line in raw_block.split('\n'):
                     if '#' in line:
-                         line = line.split('#')[0]
-                    
-                    # Split by comma (standard separator)
-                    parts = line.split(',')
-                    
-                    for part in parts:
+                        line = line.split('#')[0]
+                    for part in line.split(','):
                         clean_key = part.strip()
-                        # ST.RICT VALIDATION: Gemini keys typically start with 'AIzaSy'
-                        # This ensures we don't accidentally pick up garbage or split logic
                         if clean_key.startswith("AIzaSy") and len(clean_key) > 30:
-                             keys.append(clean_key)
-                             
+                            keys.append(clean_key)
     except Exception as e:
-        print(f"Error parsing .env manually: {e}")
-        
+        print(f"[CONFIG] Error parsing .env manually: {e}")
+
     return keys
 
 GEMINI_API_KEYS = load_multiline_gemini_keys()
