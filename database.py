@@ -266,3 +266,64 @@ def mark_keyword_completed_in_pool(keyword):
         requests.patch(url, headers=get_headers(), json={"status": "completed"}, timeout=5)
     except Exception as e:
         print(f"[ERROR] DB Error (mark_keyword_completed): {e}")
+
+
+# ---------------------------------------------------------------------------
+# Bot Config (key/value settings stored in Supabase bot_config table)
+# ---------------------------------------------------------------------------
+def get_bot_config_value(key: str, default=None):
+    """
+    Reads a single config value from the Supabase bot_config table.
+    Returns `default` if the key does not exist or on error.
+
+    Table schema expected:
+        bot_config(key TEXT PRIMARY KEY, value TEXT, updated_at TIMESTAMPTZ)
+    """
+    if not SUPABASE_URL:
+        return default
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/bot_config?key=eq.{key}&select=value&limit=1"
+        resp = requests.get(url, headers=get_headers(), timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data:
+                return data[0].get("value", default)
+    except Exception as e:
+        print(f"[ERROR] DB Error (get_bot_config_value '{key}'): {e}")
+    return default
+
+
+def set_bot_config_value(key: str, value: str):
+    """
+    Upserts a key/value pair into the Supabase bot_config table.
+    Creates the row if it doesn't exist, updates it if it does.
+    """
+    if not SUPABASE_URL:
+        return
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/bot_config"
+        headers = get_headers()
+        headers["Prefer"] = "resolution=merge-duplicates"
+        payload = {"key": key, "value": str(value)}
+        resp = requests.post(url, headers=headers, json=payload, timeout=5)
+        if resp.status_code >= 400:
+            print(f"[ERROR] DB Error (set_bot_config_value '{key}'): {resp.text}")
+        else:
+            print(f"[CONFIG] Saved '{key}' = '{value}' to Supabase bot_config.")
+    except Exception as e:
+        print(f"[ERROR] DB Error (set_bot_config_value '{key}'): {e}")
+
+
+def get_all_bot_config() -> dict:
+    """Returns the full bot_config table as a Python dict {key: value}."""
+    if not SUPABASE_URL:
+        return {}
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/bot_config?select=key,value"
+        resp = requests.get(url, headers=get_headers(), timeout=5)
+        if resp.status_code == 200:
+            return {row["key"]: row["value"] for row in resp.json()}
+    except Exception as e:
+        print(f"[ERROR] DB Error (get_all_bot_config): {e}")
+    return {}
+

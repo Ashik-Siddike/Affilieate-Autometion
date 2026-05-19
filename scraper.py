@@ -1,6 +1,7 @@
 import re
 import requests
 from config import SCRAPINGANT_API_KEYS
+from niche_config import get_niche, DEFAULT_NICHE
 
 def extract_asin(url):
     """Extracts ASIN from Amazon URL using regex."""
@@ -171,31 +172,39 @@ def scrape_competitor_text(url):
             continue
     return None
 
-# Watch-related terms — used for niche safety filter
-_WATCH_TERMS = (
-    'watch', 'skmei', 'curren', 'casio', 'fossil',
-    'timepiece', 'wristwatch', 'chronograph', 'quartz',
-    'digital watch', 'analog watch', 'smartwatch',
-)
+# Legacy constant kept for backward-compat imports (now driven by niche_config)
+_WATCH_TERMS = tuple(get_niche(DEFAULT_NICHE)["niche_terms"])
 
-def search_amazon(keyword, limit=3):
+def search_amazon(keyword, limit=3, niche_key: str = DEFAULT_NICHE):
     """
     Searches Amazon for a keyword and returns a list of product URLs.
-    Niche-locked to WATCHES only.
-    Uses Amazon Watches category filter (n:7141123011).
-    """
-    # ── Safety net: ensure keyword always targets watches ──
-    kw_lower = keyword.lower()
-    if not any(term in kw_lower for term in _WATCH_TERMS):
-        keyword = keyword + ' watch'
-        print(f"[NICHE GUARD] Keyword adjusted to: '{keyword}'")
+    Niche-aware: uses Amazon category filter + niche guard from niche_config.
 
-    print(f"Searching Amazon for: {keyword}")
-    # rh=n:7141123011 = Amazon Watches & Accessories department
+    Args:
+        keyword   : Search term from keyword pool
+        limit     : Max number of product URLs to return
+        niche_key : Key from NICHE_REGISTRY (e.g. 'watches', 'headphones')
+    """
+    niche = get_niche(niche_key)
+    niche_terms = tuple(niche["niche_terms"])
+    amazon_cat  = niche["amazon_category"]
+    sort_by     = niche.get("amazon_sort", "review-rank")
+
+    # ── Safety net: keyword must contain a niche-related term ──
+    kw_lower = keyword.lower()
+    if not any(term in kw_lower for term in niche_terms):
+        # Append the first niche term (usually the niche name) as a fallback
+        fallback_term = niche_terms[0]
+        keyword = f"{keyword} {fallback_term}"
+        print(f"[NICHE GUARD] ({niche_key}) Keyword adjusted to: '{keyword}'")
+
+    print(f"[SEARCH] Niche='{niche_key}' | Query='{keyword}'")
+    # Build Amazon search URL with category filter and sort
     base_search_url = (
         f"https://www.amazon.com/s?k={keyword.replace(' ', '+')}"
-        "&rh=n%3A7141123011&s=review-rank"
+        f"&rh={amazon_cat}&s={sort_by}"
     )
+
     
     # Re-use scraping logic (simplified for now, ideally specific function)
     # We need to reuse the key rotation logic.

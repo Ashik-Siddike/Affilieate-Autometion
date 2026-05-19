@@ -8,6 +8,7 @@ import make_handler
 import image_composer
 from datetime import datetime, timedelta
 from seo_utils import SEOChecker
+from niche_config import DEFAULT_NICHE, get_niche
 
 # ---------------------------------------------------------------------------
 # Keyword management (file-based fallback)
@@ -196,8 +197,22 @@ def main(config=None, log_function=print, site_config=None):
         log_function(f"[KW {keyword_idx}/{len(keywords_to_process)}] {keyword}")
         log_function("=" * 70)
 
-        # Search Amazon
-        discovered_urls = scraper.search_amazon(keyword, limit=config['products_per_keyword'])
+        # ── Resolve active niche for this run ──
+        # Priority: site_config > config dict > Supabase bot_config > DEFAULT_NICHE
+        active_niche = (
+            (site_config or {}).get('niche')
+            or config.get('niche')
+            or database.get_bot_config_value('niche', DEFAULT_NICHE)
+        )
+        niche_info = get_niche(active_niche)
+        log_function(f"[NICHE] Active niche: '{active_niche}' ({niche_info['display_name']})")
+
+        # Search Amazon using the active niche
+        discovered_urls = scraper.search_amazon(
+            keyword,
+            limit=config['products_per_keyword'],
+            niche_key=active_niche,
+        )
 
         if not discovered_urls:
             log_function(f"[SKIP] No products found for '{keyword}'.")
