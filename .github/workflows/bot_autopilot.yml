@@ -1,0 +1,44 @@
+name: 🤖 Whit Logic Auto-Pilot Bot
+
+on:
+  schedule:
+    # প্রতি 6 ঘন্টায় চলবে (UTC time)
+    - cron: '0 0,6,12,18 * * *'
+  workflow_dispatch:  # Manual trigger (GitHub UI থেকে চালানো যাবে)
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60  # Max 1 hour per cycle
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: 🚀 Run Bot (Single Cycle)
+        env:
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+          SCRAPINGANT_API_KEYS: ${{ secrets.SCRAPINGANT_API_KEYS }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          NEXT_API_URL: ${{ secrets.NEXT_API_URL }}
+          BOT_API_SECRET: ${{ secrets.BOT_API_SECRET }}
+          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
+          N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          AUTO_MODE: "True"
+          RUN_MODE: "single"
+          AUTO_MAX_KEYWORDS: "2"
+          AUTO_MAX_ARTICLES: "4"
+          AUTO_PRODUCTS_PER_KW: "2"
+        run: python run_single_cycle.py
