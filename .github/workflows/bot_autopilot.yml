@@ -42,9 +42,11 @@ jobs:
           N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CLOUDINARY_URL: ${{ secrets.CLOUDINARY_URL }}
           AUTO_MODE: "True"
           RUN_MODE: "single"
           AUTO_MAX_KEYWORDS: "2"
           AUTO_MAX_ARTICLES: "4"
           AUTO_PRODUCTS_PER_KW: "2"
         run: python run_single_cycle.py
+
