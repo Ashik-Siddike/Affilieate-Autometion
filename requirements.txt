@@ -5,3 +5,6 @@ python-dotenv
 streamlit
 pandas
 youtube-search-python
+
+cloudinary
+Pillow

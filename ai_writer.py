@@ -20,7 +20,7 @@ def switch_to_next_gemini_key():
     """Switches to the next Gemini API key in rotation."""
     global _current_key_index
     _current_key_index = (_current_key_index + 1) % len(GEMINI_API_KEYS)
-    print(f"🔄 Switched to Gemini API key {_current_key_index + 1}/{len(GEMINI_API_KEYS)}")
+    print(f" Switched to Gemini API key {_current_key_index + 1}/{len(GEMINI_API_KEYS)}")
 
 def is_quota_error(error):
     """
@@ -75,11 +75,11 @@ def find_review_video(product_name):
             '''
             return embed_code
     except Exception as e:
-        print(f"⚠️ Primary Video Search Failed: {e}")
+        print(f" Primary Video Search Failed: {e}")
         pass
 
     # --- FALLBACK: ScrapingAnt Search ---
-    print("🔄 Attempting Fallback Video Search via ScrapingAnt...")
+    print(" Attempting Fallback Video Search via ScrapingAnt...")
     search_url = f"https://www.youtube.com/results?search_query={product_name.replace(' ', '+')}+review"
     
     for api_key in SCRAPINGANT_API_KEYS:
@@ -111,7 +111,7 @@ def find_review_video(product_name):
                         </div>
                     </div>
                     '''
-                     print("✅ Fallback Video Found!")
+                     print(" Fallback Video Found!")
                      return embed_code
         except Exception as e:
             print(f"Fallback key failed: {e}")
@@ -278,111 +278,152 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
     
     # Retry Logic for Quota (Try all keys if needed)
     max_attempts = len(GEMINI_API_KEYS) * 2
-    keys_tried = set()
 
     for attempt in range(max_attempts):
         current_key = get_current_gemini_key()
         
         try:
-            # We construct the final prompt by combining system instruction and user prompt
-            # This is safer for broader model compatibility if 'system_instruction' param is tricky
             final_prompt = system_instruction + "\n\n" + prompt
-            
             genai.configure(api_key=current_key)
             
-            # --- DYNAMIC MODEL DISCOVERY & EXECUTION ---
-            response = None
+            response   = None
             last_error = None
             
-            # 1. Try Standard Preferred Models
-            preferred_models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro', 'gemini-pro']
+            # --- Try preferred models in order ---
+            preferred_models = [
+                'gemini-2.5-flash',
+                'gemini-1.5-flash',
+                'gemini-1.5-pro',
+                'gemini-1.0-pro',
+                'gemini-pro',
+            ]
             
+            FLUFF_WORDS   = ["unleash", "unlock", "realm", "landscape", "tapestry",
+                             "symphony", "game-changer", "delve", "dive deep",
+                             "bustling", "vibrant", "meticulous", "paramount", "elevate"]
+            MAX_FLUFF_RETRIES = 3
+
             for model_name in preferred_models:
                 try:
-                    # print(f"Trying model: {model_name}...") 
                     model = genai.GenerativeModel(model_name)
-                    response = model.generate_content(final_prompt)
+
+                    # Fluff-check validation loop
+                    for fluff_attempt in range(MAX_FLUFF_RETRIES):
+                        r = model.generate_content(final_prompt)
+                        if r and r.text:
+                            found_fluff = [w for w in FLUFF_WORDS if w in r.text.lower()]
+                            if not found_fluff:
+                                print(f"[AI] Model: {model_name} | Fluff check passed (attempt {fluff_attempt+1})")
+                                response = r
+                                break
+                            else:
+                                print(f"[AI] Fluff detected: {found_fluff}. Retry {fluff_attempt+1}/{MAX_FLUFF_RETRIES}...")
+                                if fluff_attempt == MAX_FLUFF_RETRIES - 1:
+                                    print(f"[AI] Fluff retry limit hit for {model_name}. Accepting anyway.")
+                                    response = r
+                        else:
+                            break
+
                     if response:
-                         print(f"✅ Generated using: {model_name}")
-                         break
-                except Exception as e:
-                    # If it's a quota error, stop trying models on this key -> raise to outer loop to switch key
-                    if is_quota_error(e):
-                        raise e
-                    # If it's a 404/Not Found, ignore and try next model
-                    if "404" in str(e) or "not found" in str(e).lower():
-                        continue
-                    else:
-                        # Unknown error (e.g. server error), maybe try next model or raise?
-                        # Safer to raise if it's not a simple 'not found'
-                        last_error = e
-            
-            # 2. If Standard Models Failed, Auto-Discover from Account
+                        break  # Got a valid response — stop trying other models
+
+                except Exception as model_err:
+                    if is_quota_error(model_err):
+                        raise model_err  # Let outer loop handle key rotation
+                    if "404" in str(model_err) or "not found" in str(model_err).lower():
+                        continue       # Model not available — try next
+                    last_error = model_err
+                    continue
+
+            # --- Fallback: auto-discover available models ---
             if not response:
-                print("⚠️ Standard models failed. Auto-discovering available models...")
+                print("[AI] Standard models failed. Auto-discovering available models...")
                 try:
-                    all_models = list(genai.list_models())
-                    # Filter for generation models
+                    all_models   = list(genai.list_models())
                     valid_models = [m.name for m in all_models if 'generateContent' in m.supported_generation_methods]
-                    
                     if valid_models:
-                        # Prefer Flash, then Pro
-                        # Use first one found
                         best_model = next((m for m in valid_models if 'flash' in m), valid_models[0])
-                        print(f"✅ Auto-selected available model: {best_model}")
-                        
-                        model = genai.GenerativeModel(best_model)
+                        print(f"[AI] Auto-selected: {best_model}")
+                        model    = genai.GenerativeModel(best_model)
                         response = model.generate_content(final_prompt)
                     else:
-                         print("❌ No valid generic models found on this key.")
-                         # If we still have an error from loop, raise it to trigger key switch
-                         if last_error: raise last_error
-                         
-                except Exception as discovery_e:
-                    # If discovery fails (e.g. API disabled), raise to switch key
-                    raise discovery_e
-            
-                if response and response.text:
-                    # Success! (Handle Flash/Pro logic inside)
-                    # We are in the loop, so we break out once successful.
-                    # But first, parse JSON.
-                    
-                    content = response.text
-                    social_data = {}
+                        print("[AI] No valid models found on this key.")
+                        if last_error:
+                            raise last_error
+                except Exception as disc_err:
+                    raise disc_err
 
-                    # Try to find JSON block at the end
-                    json_match = re.search(r'```json\s*({.*?})\s*```', content, re.DOTALL)
-                    if json_match:
+            # --- Parse and return successful response ---
+            if response and response.text:
+                content     = response.text
+                social_data = {}
+
+                # ── Strategy 1: ```json ... ``` fenced block ──
+                json_match = re.search(r'```json\s*(\{.*?\})\s*```', content, re.DOTALL)
+                if json_match:
+                    try:
+                        social_data = json.loads(json_match.group(1))
+                        content = content.replace(json_match.group(0), "").strip()
+                    except Exception:
+                        content = content.replace(json_match.group(0), "").strip()
+
+                # ── Strategy 2: bare JSON object at the end ──
+                if not social_data:
+                    bare_match = re.search(
+                        r'(\{\s*"fb_content"\s*:.*?\})\s*$',
+                        content, re.DOTALL
+                    )
+                    if bare_match:
                         try:
-                            json_str = json_match.group(1)
-                            social_data = json.loads(json_str)
-                            # Remove the JSON from the main article content (HTML only)
-                            content = content.replace(json_match.group(0), "").strip()
-                        except:
-                            pass # Parse error, ignore social
-                    
-                    # Clean up Markdown wrapper if present 
-                    if content.startswith("```html"):
-                        content = content.replace("```html", "").replace("```", "")
-                    
-                    # Fallback cleanup for ``` at start/end
-                    content = content.strip('`').strip()
-                        
-                    return content, social_data
-            
-            # If we fall through here, it means auto-discovery also failed or returned None
-            if not response:
-                 print("❌ Auto-discovery failed or returned empty.")
-                 if last_error: raise last_error
+                            social_data = json.loads(bare_match.group(1))
+                            content = content.replace(bare_match.group(0), "").strip()
+                        except Exception:
+                            content = content.replace(bare_match.group(0), "").strip()
+
+                # ── Strategy 3: any JSON block with social keys ──
+                if not social_data:
+                    any_json = re.search(
+                        r'(\{[^{}]*"(?:fb_content|pin_title|ig_content|x_content)"[^{}]*\})',
+                        content, re.DOTALL
+                    )
+                    if any_json:
+                        try:
+                            social_data = json.loads(any_json.group(1))
+                        except Exception:
+                            pass
+                        content = content[:any_json.start()].strip()
+
+                # ── Aggressive fallback: strip anything from first { with social keys ──
+                for key in ['"fb_content"', '"pin_title"', '"ig_content"', '"x_content"']:
+                    idx = content.find(key)
+                    if idx != -1:
+                        # Walk back to find opening {
+                        brace_pos = content.rfind('{', 0, idx)
+                        if brace_pos != -1:
+                            content = content[:brace_pos].strip()
+                        break
+
+                # ── Strip markdown code fences ──
+                content = re.sub(r'```(?:html|json)?\s*', '', content)
+                content = re.sub(r'```\s*', '', content)
+                content = content.strip('`').strip()
+
+                return content, social_data
+
+
+            # If we get here, no response was obtained
+            print(f"[AI] Attempt {attempt+1}: No response obtained.")
+            if last_error:
+                raise last_error
 
         except Exception as e:
             if is_quota_error(e):
-                print(f"⚠️ Quota exceeded on current key. Switching...")
+                print(f"[AI] Quota exceeded. Switching API key...")
                 switch_to_next_gemini_key()
-                time.sleep(1)
+                time.sleep(2)
             else:
-                print(f"❌ Error generating article: {e}")
-                # If it's not a quota error, maybe we shouldn't retry instantly, but let's try next key just in case
+                print(f"[AI] Error on attempt {attempt+1}: {e}")
                 switch_to_next_gemini_key()
-                
+
+    print("[AI] All API keys and retries exhausted. Returning None.")
     return None, None

@@ -1,13 +1,21 @@
 import streamlit as st
 import pandas as pd
 import os
+import sys
 import time
 import base64
 import requests
+
+# Fix Windows console emoji charmap encode errors
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8')
+
 import serp_checker
 import keyword_spy
 from main import main as run_bot
-from config import NICHE_KEYWORDS, WP_URL, SCRAPINGANT_API_KEYS, GEMINI_API_KEYS, N8N_WEBHOOK_URL, MAKE_WEBHOOK_URL, WP_USERNAME, WP_APP_PASSWORD, SUPABASE_URL, SUPABASE_KEY, AUTO_KEY
+from config import NICHE_KEYWORDS, SCRAPINGANT_API_KEYS, GEMINI_API_KEYS, N8N_WEBHOOK_URL, MAKE_WEBHOOK_URL, SUPABASE_URL, SUPABASE_KEY, NEXT_API_URL, BOT_API_SECRET, AUTO_KEY
 
 # ==========================================
 # 🛠️ HELPER FUNCTIONS (SUPABASE REST)
@@ -43,7 +51,9 @@ def add_site(name, url_link, username, password, n8n):
     """Add a new site to Supabase."""
     if not SUPABASE_URL: return
     try:
+        import uuid
         data = {
+            "id": str(uuid.uuid4()),
             "name": name,
             "url": url_link,
             "username": username,
@@ -463,17 +473,6 @@ sites = load_sites()
 default_site_name = "Whit Logic"
 has_default = any(s.get('name') == default_site_name for s in sites)
 
-if not has_default and WP_URL and WP_USERNAME:
-    default_site_data = {
-        'id': 0,
-        'name': default_site_name,
-        'url': WP_URL,
-        'username': WP_USERNAME,
-        'app_password': WP_APP_PASSWORD,
-        'n8n_webhook': MAKE_WEBHOOK_URL, # Use new Make.com webhook for default site
-        'keywords': []
-    }
-    sites.insert(0, default_site_data)
 # -------------------------------------------------------------
 
 # Hide Sidebar (CSS) or just keep it empty/minimal
@@ -494,7 +493,7 @@ if not sites:
 
 # TABS ARE THE NAVIGATION BAR
 # TABS ARE THE NAVIGATION BAR
-tab1, tab2, tab3, tab_analytics, tab_serp, tab4, tab5 = st.tabs(["📊 Live Monitor", "🌍 Site Manager", "📝 Keywords", "📈 Analytics", "🔍 SERP", "💾 Cloud DB", "🔧 Tools"])
+tab1, tab2, tab3, tab_bot, tab_analytics, tab_serp, tab4, tab5 = st.tabs(["📊 Live Monitor", "🌍 Site Manager", "📝 Keywords", "🤖 Bot Engine", "📈 Analytics", "🔍 SERP", "💾 Cloud DB", "🔧 Tools"])
 
 # --- TAB 2: SITE MANAGER (Logic runs FIRST to define variables) ---
 with tab2:
@@ -551,15 +550,15 @@ with tab2:
         with col_add:
             st.markdown("#### Add New Site")
             with st.form("add_site_form_tab"):
-                new_name = st.text_input("Name")
-                new_url = st.text_input("WP URL")
-                new_user = st.text_input("Username")
-                new_pass = st.text_input("App Password", type="password")
+                new_name = st.text_input("Site Name (e.g. Whitlogic)")
+                new_url = st.text_input("Next.js Site URL (e.g. https://www.whitlogic.online)")
+                new_pass = st.text_input("Bot API Secret (Required for publishing)", type="password")
                 new_n8n = st.text_input("Make.com Webhook (Optional)")
                 
                 if st.form_submit_button("Add Site"):
                     if new_name and new_url:
-                        if add_site(new_name, new_url, new_user, new_pass, new_n8n): # Variable name kept for DB compatibility
+                        # Passing empty string for username since Next.js only needs the secret
+                        if add_site(new_name, new_url, "", new_pass, new_n8n):
                             st.success("Site Added!")
                             st.rerun()
         
@@ -670,12 +669,30 @@ with tab1:
         # MAIN ACTION BUTTON
         start_btn = st.button("⚡ IGNITE AUTOMATION", use_container_width=True, type="primary")
 
+        # PHASE 0 DISCOVERY BUTTON
+        st.markdown("<br>", unsafe_allow_html=True)
+        discover_btn = st.button("⚡ Force Trigger Keyword Discovery", use_container_width=True)
+        
+        if discover_btn:
+            try:
+                import keyword_discoverer
+                st.toast("🔍 Starting Keyword Discovery...", icon="⏳")
+                with st.spinner("Discovering low-competition keywords..."):
+                    new_kws = keyword_discoverer.discover_watch_keywords(limit=10)
+                if new_kws:
+                    st.success(f"Added {len(new_kws)} new keywords to the pool!")
+                    st.balloons()
+                else:
+                    st.info("No new keywords found.")
+            except Exception as e:
+                st.error(f"Error during discovery: {e}")
+
     with c_controls:
         # Toggles for Automation Settings (Restored)
         t1, t2 = st.columns(2)
         with t1:
             enable_internal_links = st.toggle("Internal Links", value=True)
-            auto_publish_wp = st.toggle("Publish to WP", value=True)
+            auto_publish_wp = st.toggle("Publish to Next.js", value=True)
         with t2:
             enable_n8n = st.toggle("Make.com Trig", value=True)
             enable_comparison = st.toggle("Comparison Table", value=False)
@@ -741,7 +758,7 @@ with tab1:
             'max_total_articles': max_total_articles,
             'use_comparison': enable_comparison,
             'use_internal_links': enable_internal_links,
-            'publish_wp': auto_publish_wp,
+            'publish_nextjs': auto_publish_wp,
             'trigger_n8n': enable_n8n,
             'delay_between_products': delay_products,
             'delay_between_keywords': delay_keywords,
@@ -963,3 +980,258 @@ with tab4:
             ret = trigger_n8n_workflow(t_title, t_url, "https://via.placeholder.com/150", "Cap", "Test", "<h1>Desc</h1>", active_webhook)
             if ret: st.success("Sent!")
             else: st.error("Failed")
+# --- TAB 8: BOT ENGINE ---
+with tab_bot:
+    bot_col1, bot_col2 = st.columns(2, gap="large")
+
+    with bot_col1:
+        st.markdown("### 🚀 Auto-Pilot Mode")
+        st.caption("Fetches next pending keyword from `keyword_pool` table and runs the full pipeline.")
+        
+        if SUPABASE_URL:
+            try:
+                count_url = f"{SUPABASE_URL}/rest/v1/keyword_pool?status=eq.pending&select=count"
+                count_r = requests.get(count_url, headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Prefer": "count=exact"})
+                pending_count = count_r.headers.get("content-range", "?/?").split("/")[-1]
+                st.metric("Pending in Queue", pending_count)
+            except:
+                pass
+
+        if st.button("▶️ Run Next Pending Keyword", type="primary", use_container_width=True):
+            if not SUPABASE_URL:
+                st.error("❌ Supabase not connected.")
+            else:
+                try:
+                    kp_url = f"{SUPABASE_URL}/rest/v1/keyword_pool?status=eq.pending&select=*&limit=1"
+                    kp_r = requests.get(kp_url, headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"})
+                    kw_data = kp_r.json()
+                    if kw_data:
+                        kw = kw_data[0]
+                        bot_logs = []
+                        with st.status("🤖 Pipeline running...", expanded=True) as status:
+                            bot_run_pipeline(
+                                keyword=kw['keyword'],
+                                brand=kw.get('brand', 'Unknown'),
+                                model_num=kw.get('modelNumber', 'Unknown'),
+                                log_fn=lambda m: (bot_logs.append(m), st.write(m))
+                            )
+                            patch_url = f"{SUPABASE_URL}/rest/v1/keyword_pool?id=eq.{kw['id']}"
+                            requests.patch(patch_url, headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json"}, json={"status": "processed"})
+                            status.update(label="✅ Done!", state="complete")
+                    else:
+                        st.info("📭 No pending keywords. Add some below!")
+                except Exception as e:
+                    st.error(f"Pipeline error: {e}")
+
+        st.divider()
+        st.markdown("#### 🔍 Keyword Discoverer (Auto-Queue)")
+        seeds = st.text_area("Seed Keywords (one per line)", value="SKMEI tactical watch\\nCURREN military watch")
+        if st.button("🔎 Discover & Queue", use_container_width=True):
+            st.warning("Keyword Discoverer logic needs to be migrated from automation-bot (coming soon). For now, manually add to Supabase.")
+
+    with bot_col2:
+        st.markdown("### ✍️ Manual Mode")
+        st.caption("Manually specify a watch to scrape, generate, and publish instantly.")
+        with st.form("bot_manual_form"):
+            m_keyword = st.text_input("Amazon Search Keyword", placeholder="e.g. SKMEI 2049 tactical watch review")
+            m_brand = st.selectbox("Brand", ["SKMEI", "CURREN", "CASIO", "NAVIFORCE", "Other"])
+            m_brand_other = st.text_input("If 'Other', type brand name:")
+            m_model = st.text_input("Model Number", placeholder="e.g. 2049")
+            submitted = st.form_submit_button("🚀 Generate & Publish", type="primary", use_container_width=True)
+
+        if submitted:
+            final_brand = m_brand_other.strip() if m_brand == "Other" and m_brand_other.strip() else m_brand
+            if not m_keyword.strip() or not m_model.strip():
+                st.error("❌ Enter keyword and model number.")
+            else:
+                with st.status(f"🚀 Running pipeline for {final_brand} {m_model}...", expanded=True) as status:
+                    bot_run_pipeline(keyword=m_keyword.strip(), brand=final_brand, model_num=m_model.strip(), log_fn=st.write)
+                    status.update(label="✅ Complete!", state="complete")
+
+    st.divider()
+    st.markdown("#### 📋 Recently Published Reviews")
+    if st.button("🔄 Refresh"):
+        if SUPABASE_URL:
+            try:
+                p_url = f"{SUPABASE_URL}/rest/v1/Post?select=title,brand,modelNumber,slug,createdAt&order=createdAt.desc&limit=20"
+                p_r = requests.get(p_url, headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"})
+                if p_r.status_code == 200 and p_r.json():
+                    posts_df = pd.DataFrame(p_r.json())
+                    posts_df["Live Link"] = posts_df["slug"].apply(lambda s: f"https://whitlogic.online/watch-reviews/{s}")
+                    st.dataframe(posts_df[["title", "brand", "modelNumber", "createdAt", "Live Link"]], use_container_width=True)
+                else:
+                    st.info("No published posts found.")
+            except Exception as e:
+                st.error(e)
+
+
+# ==========================================
+# KEYWORD MANAGER SECTION
+# ==========================================
+st.divider()
+st.markdown("""
+<div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+     border: 1px solid rgba(255,144,0,0.3); border-radius: 16px; padding: 24px; margin-top: 16px;'>
+<h2 style='color: #FF9000; margin:0 0 4px 0; font-size: 1.4rem;'>Keyword Manager</h2>
+<p style='color: #888; margin:0; font-size: 14px;'>Supabase keyword_pool table-এ সরাসরি keyword add, view ও delete করুন</p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+kw_col1, kw_col2 = st.columns([1, 1], gap="large")
+
+# ── LEFT: Add Keywords ──
+with kw_col1:
+    st.markdown("##### ➕ Keyword Add করুন")
+
+    # Single keyword
+    with st.form("single_kw_form", clear_on_submit=True):
+        single_kw = st.text_input(
+            "Keyword লিখুন",
+            placeholder="e.g. best budget smartwatch under $50"
+        )
+        kw_brand = st.text_input("Brand (optional)", placeholder="e.g. Casio")
+        kw_model = st.text_input("Model (optional)", placeholder="e.g. G-Shock GA-100")
+        add_single = st.form_submit_button("Add Keyword", use_container_width=True)
+
+    if add_single and single_kw.strip():
+        if SUPABASE_URL:
+            import uuid as _uuid
+            payload = {
+                "id": str(_uuid.uuid4()),
+                "keyword": single_kw.strip(),
+                "status": "pending"
+            }
+            if kw_brand.strip():
+                payload["brand"] = kw_brand.strip()
+            if kw_model.strip():
+                payload["modelNumber"] = kw_model.strip()
+            h = {
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": "application/json",
+                "Prefer": "return=representation"
+            }
+            r = requests.post(
+                f"{SUPABASE_URL}/rest/v1/keyword_pool",
+                headers=h, json=payload
+            )
+            if r.status_code in [200, 201]:
+                st.success(f"Added: **{single_kw.strip()}**")
+            elif "unique" in r.text.lower() or "23505" in r.text:
+                st.warning("Already exists in pool.")
+            else:
+                st.error(f"Error: {r.text[:120]}")
+
+    st.markdown("---")
+    st.markdown("##### 📋 Bulk Import (একসাথে অনেক keyword)")
+    bulk_text = st.text_area(
+        "প্রতিটি keyword আলাদা line-এ লিখুন",
+        placeholder="best gaming headset under $30\nbest wireless earbuds 2025\nbest smartwatch for kids",
+        height=180
+    )
+    if st.button("Bulk Add", use_container_width=True):
+        if SUPABASE_URL and bulk_text.strip():
+            import uuid as _uuid
+            lines = [l.strip() for l in bulk_text.strip().splitlines() if l.strip()]
+            h = {
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": "application/json",
+                "Prefer": "return=representation"
+            }
+            added, skipped = 0, 0
+            for kw in lines:
+                payload = {"id": str(_uuid.uuid4()), "keyword": kw, "status": "pending"}
+                r = requests.post(f"{SUPABASE_URL}/rest/v1/keyword_pool", headers=h, json=payload)
+                if r.status_code in [200, 201]:
+                    added += 1
+                else:
+                    skipped += 1
+            st.success(f"Done! Added: **{added}**, Skipped (duplicate): **{skipped}**")
+
+# ── RIGHT: View & Delete Keywords ──
+with kw_col2:
+    st.markdown("##### 📊 Current Keyword Pool")
+
+    if st.button("🔄 Load Keywords", use_container_width=True):
+        if SUPABASE_URL:
+            h = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+            r = requests.get(
+                f"{SUPABASE_URL}/rest/v1/keyword_pool?select=id,keyword,status,createdAt&order=createdAt.desc&limit=100",
+                headers=h
+            )
+            if r.status_code == 200 and r.json():
+                kw_data = r.json()
+                st.session_state["kw_pool"] = kw_data
+
+                # Stats
+                total   = len(kw_data)
+                pending = sum(1 for k in kw_data if k.get("status") == "pending")
+                done    = sum(1 for k in kw_data if k.get("status") == "processed")
+                failed  = sum(1 for k in kw_data if k.get("status") == "failed")
+
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Total", total)
+                m2.metric("Pending", pending, delta=f"+{pending}")
+                m3.metric("Done", done)
+                m4.metric("Failed", failed)
+
+            else:
+                st.info("Keyword pool is empty.")
+                st.session_state["kw_pool"] = []
+
+    # Display table if loaded
+    if "kw_pool" in st.session_state and st.session_state["kw_pool"]:
+        df = pd.DataFrame(st.session_state["kw_pool"])
+        df = df[["keyword", "status", "createdAt"]].rename(columns={
+            "keyword": "Keyword", "status": "Status", "createdAt": "Added"
+        })
+
+        # Color-code status
+        def color_status(val):
+            colors = {"pending": "background-color:#1a3a1a; color:#4ade80",
+                      "processed": "background-color:#1a1a3a; color:#60a5fa",
+                      "failed": "background-color:#3a1a1a; color:#f87171"}
+            return colors.get(val, "")
+
+        st.dataframe(
+            df.style.applymap(color_status, subset=["Status"]),
+            use_container_width=True, height=300
+        )
+
+        st.markdown("---")
+        st.markdown("##### 🗑 Keyword Delete করুন")
+        del_kw = st.selectbox(
+            "Delete করার keyword বেছে নিন",
+            options=[""] + [k["keyword"] for k in st.session_state["kw_pool"]]
+        )
+        col_del1, col_del2 = st.columns(2)
+        with col_del1:
+            if st.button("Delete Selected", use_container_width=True):
+                if del_kw and SUPABASE_URL:
+                    h = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+                    from urllib.parse import quote
+                    r = requests.delete(
+                        f"{SUPABASE_URL}/rest/v1/keyword_pool?keyword=eq.{quote(del_kw)}",
+                        headers=h
+                    )
+                    if r.status_code in [200, 204]:
+                        st.success(f"Deleted: **{del_kw}**")
+                        st.session_state.pop("kw_pool", None)
+                        st.rerun()
+                    else:
+                        st.error(f"Error: {r.text[:100]}")
+        with col_del2:
+            if st.button("Delete All FAILED", use_container_width=True):
+                if SUPABASE_URL:
+                    h = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+                    r = requests.delete(
+                        f"{SUPABASE_URL}/rest/v1/keyword_pool?status=eq.failed",
+                        headers=h
+                    )
+                    if r.status_code in [200, 204]:
+                        st.success("All failed keywords deleted.")
+                        st.session_state.pop("kw_pool", None)
+                        st.rerun()

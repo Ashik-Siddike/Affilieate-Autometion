@@ -18,15 +18,15 @@ def send_to_make_webhook(payload, webhook_url=None):
     target_url = webhook_url if webhook_url else MAKE_WEBHOOK_URL
     
     if not target_url:
-        print("❌ Error: MAKE_WEBHOOK_URL is not set and no site-specific URL provided.")
+        print(" Error: MAKE_WEBHOOK_URL is not set and no site-specific URL provided.")
         return False
 
-    print(f"🚀 Sending data to Make.com Webhook: {target_url}")
+    print(f" Sending data to Make.com Webhook: {target_url}")
     
     # Ensure payload is JSON compatible
     try:
         # Debug: Print payload keys
-        print(f"📦 Payload keys: {list(payload.keys())}")
+        print(f" Payload keys: {list(payload.keys())}")
         
         headers = {
             "Content-Type": "application/json"
@@ -40,19 +40,19 @@ def send_to_make_webhook(payload, webhook_url=None):
         )
         
         if response.status_code == 200:
-            print("✅ Successfully sent data to Make.com!")
+            print(" Successfully sent data to Make.com!")
             return True
         else:
-            print(f"⚠️ Make.com Webhook Failed! Status: {response.status_code}")
+            print(f" Make.com Webhook Failed! Status: {response.status_code}")
             print(f"Response: {response.text}")
             return False
             
     except requests.exceptions.Timeout:
-        print("❌ Error: Connection to Make.com timed out.")
+        print(" Error: Connection to Make.com timed out.")
         return False
     except requests.exceptions.RequestException as e:
-        print(f"❌ Error sending data to Make.com: {e}")
+        print(f" Error sending data to Make.com: {e}")
         return False
     except Exception as e:
-        print(f"❌ Unexpected error in make_handler: {e}")
+        print(f" Unexpected error in make_handler: {e}")
         return False

@@ -14,7 +14,7 @@ def scrape_and_extract_keywords(url):
     html = ""
     success = False
     
-    print(f"🕵️ Spying on: {url}...")
+    print(f" Spying on: {url}...")
     
     for api_key in SCRAPINGANT_API_KEYS:
         try:

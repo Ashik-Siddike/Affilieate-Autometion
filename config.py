@@ -87,3 +87,12 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 # Automation Key
 AUTO_KEY = os.getenv("AUTO_KEY")
+
+# Automation Key
+AUTO_KEY = os.getenv('AUTO_KEY')
+
+NEXT_API_URL = os.getenv('NEXT_API_URL', 'http://localhost:3000/api/posts')
+BOT_API_SECRET = os.getenv('BOT_API_SECRET', '')
+
+# Cloudinary Configuration for Image Composition
+CLOUDINARY_URL = os.getenv('CLOUDINARY_URL', '')

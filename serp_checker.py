@@ -18,7 +18,7 @@ def check_rank(keyword, target_domain):
     encoded_keyword = quote_plus(keyword)
     search_url = f"https://www.google.com/search?q={encoded_keyword}&num=100&hl=en&gl=us"
     
-    print(f"🔍 Checking Rank for '{keyword}' on '{target_domain}'...")
+    print(f" Checking Rank for '{keyword}' on '{target_domain}'...")
 
     for api_key in SCRAPINGANT_API_KEYS:
         try:
@@ -40,7 +40,7 @@ def check_rank(keyword, target_domain):
                 
                 # Check for CAPTCHA/Block
                 if "Our systems have detected unusual traffic" in html:
-                    print("⚠️ Google Blocked Request.")
+                    print(" Google Blocked Request.")
                     continue
 
                 # Regex to find links in search results
@@ -84,10 +84,10 @@ def check_rank(keyword, target_domain):
                             break
                 
                 if found:
-                    print(f"✅ Found at Rank #{rank} ({found_url})")
+                    print(f" Found at Rank #{rank} ({found_url})")
                     return rank, found_url
                 else:
-                    print(f"❌ Not found in top {real_rank} results.")
+                    print(f" Not found in top {real_rank} results.")
                     return 0, None
             
             elif response.status_code == 429:

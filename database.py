@@ -1,10 +1,14 @@
 import os
+import uuid
 import requests
 import random
 import json
 from config import SUPABASE_URL, SUPABASE_KEY
 
-# Headers for Supabase REST API
+
+# ---------------------------------------------------------------------------
+# Supabase REST API Headers
+# ---------------------------------------------------------------------------
 def get_headers():
     if not SUPABASE_URL or not SUPABASE_KEY:
         return {}
@@ -12,39 +16,46 @@ def get_headers():
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type": "application/json",
-        "Prefer": "return=representation"  # Return data after insert/update
+        "Prefer": "return=representation",
     }
 
+
+# ---------------------------------------------------------------------------
+# Connection check
+# ---------------------------------------------------------------------------
 def init_db():
     """Confirms connection to Supabase via REST API."""
     if not SUPABASE_URL or not SUPABASE_KEY:
-        print("⚠️ Supabase credentials missing.")
+        print("[WARNING] Supabase credentials missing.")
         return
     try:
-        # Simple ping: Fetch 1 item from products
         url = f"{SUPABASE_URL}/rest/v1/products?select=count&limit=1"
         response = requests.get(url, headers=get_headers(), timeout=5)
         if response.status_code == 200:
-            print("✅ Connected to Supabase (REST).")
+            print("[OK] Connected to Supabase (REST).")
         else:
-            print(f"❌ Supabase connection error: {response.text}")
+            print(f"[ERROR] Supabase connection error: {response.text}")
     except Exception as e:
-        print(f"❌ Supabase connection error: {e}")
+        print(f"[ERROR] Supabase connection error: {e}")
 
+
+# ---------------------------------------------------------------------------
+# Product operations
+# ---------------------------------------------------------------------------
 def check_product_status(asin):
     """
     Checks product status.
     Returns:
-        None if not exists
-        0 if exists but not published
-        1 if exists and published
+        None  -> not exists
+        0     -> exists but not published
+        1     -> exists and published
     """
-    if not SUPABASE_URL: return None
+    if not SUPABASE_URL:
+        return None
     try:
         url = f"{SUPABASE_URL}/rest/v1/products?asin=eq.{asin}&select=is_published"
         response = requests.get(url, headers=get_headers(), timeout=10)
         data = response.json()
-        
         if data and len(data) > 0:
             return 1 if data[0].get('is_published') else 0
         return None
@@ -52,126 +63,46 @@ def check_product_status(asin):
         print(f"DB Error (check_status): {e}")
         return None
 
+
 def save_product(data_dict):
     """Saves a new product to the database (Upsert)."""
-    if not SUPABASE_URL: return
+    if not SUPABASE_URL:
+        return
     try:
         url = f"{SUPABASE_URL}/rest/v1/products"
         data = {
-            "asin": data_dict.get('asin'),
-            "title": data_dict.get('title'),
-            "price": data_dict.get('price'),
-            "rating": data_dict.get('rating'),
+            "asin":         data_dict.get('asin'),
+            "title":        data_dict.get('title'),
+            "price":        data_dict.get('price'),
+            "rating":       data_dict.get('rating'),
             "review_count": data_dict.get('review_count'),
-            "image_url": data_dict.get('image_url'),
-            "product_url": data_dict.get('product_url'),
+            "image_url":    data_dict.get('image_url'),
+            "product_url":  data_dict.get('product_url'),
         }
-        
-        # Upsert: explicit "on_conflict" handling logic via Prefer header
-        # Supabase defaults to fail on duplicate PK if not specified.
-        # Ideally use POST with Prefer: resolution=merge-duplicates
         headers = get_headers()
         headers["Prefer"] = "resolution=merge-duplicates"
-        
         response = requests.post(url, headers=headers, json=data, timeout=10)
         if response.status_code >= 400:
             print(f"DB Error (save_product): {response.text}")
-            
     except Exception as e:
         print(f"DB Error (save_product): {e}")
 
+
 def mark_as_published(asin):
     """Marks a product as published."""
-    if not SUPABASE_URL: return
+    if not SUPABASE_URL:
+        return
     try:
         url = f"{SUPABASE_URL}/rest/v1/products?asin=eq.{asin}"
         requests.patch(url, headers=get_headers(), json={'is_published': True})
     except Exception as e:
         print(f"DB Error (mark_published): {e}")
 
-def get_similar_products(current_asin, limit=2):
-    """
-    Fetches random other products.
-    """
-    if not SUPABASE_URL: return []
-    try:
-        # Fetch 20, same logic as before
-        url = f"{SUPABASE_URL}/rest/v1/products?asin=neq.{current_asin}&select=title,price,rating,review_count,image_url,product_url&limit=20"
-        response = requests.get(url, headers=get_headers())
-        products = response.json()
-        
-        if not products or not isinstance(products, list): 
-            if isinstance(products, dict):
-                print(f"DB Error (similar): {products}")
-            return []
-        
-        if len(products) > limit:
-            return random.sample(products, limit)
-        return products
-    except Exception as e:
-        print(f"DB Error (similar): {e}")
-        return []
-
-def get_published_posts(limit=5):
-    """Fetches a list of recently published posts."""
-    if not SUPABASE_URL: return []
-    try:
-        request_headers = get_headers()
-        # Filter where post_link is not null
-        url = f"{SUPABASE_URL}/rest/v1/products?is_published=eq.true&post_link=not.is.null&select=title,post_link&order=created_at.desc&limit={limit}"
-        response = requests.get(url, headers=request_headers)
-        data = response.json()
-        
-        return [{'title': p['title'], 'link': p['post_link']} for p in data]
-    except Exception as e:
-        print(f"DB Error (get_posts): {e}")
-        return []
-
-def get_relevant_posts(keyword, limit=5):
-    """
-    Fetches contextually relevant posts for internal linking (Silo).
-    Searches for published posts where title contains the keyword.
-    """
-    if not SUPABASE_URL: return []
-    try:
-        request_headers = get_headers()
-        # Basic full-text search simulation using ilike on title
-        # keyword usually is "Best Gaming Laptop", we want to match "Gaming Laptop"
-        # Let's simple split and take the noun or just use the full keyword
-        # Safe approach: ilike %keyword%
-        
-        # Clean keyword slightly
-        clean_kw = keyword.replace(' ', '%') 
-        
-        url = f"{SUPABASE_URL}/rest/v1/products?is_published=eq.true&post_link=not.is.null&title=ilike.*{clean_kw}*&select=title,post_link&order=created_at.desc&limit={limit}"
-        response = requests.get(url, headers=request_headers)
-        data = response.json()
-        
-        # Fallback to recent if specific not found (Simulate Silo filling)
-        if not data or not isinstance(data, list):
-             # Handle error response or empty
-             if isinstance(data, dict):
-                 print(f"DB Unknown Response: {data}")
-             print("⚠️ No direct relevant links found. Mixing with recent posts.")
-             recent = get_published_posts(limit=limit)
-             
-             # If data is bad, reset it
-             if not isinstance(data, list): data = []
-             
-             # Merge unique
-             existing_links = {p.get('post_link') for p in data if isinstance(p, dict)}
-             for r in recent:
-                 if r.get('link') not in existing_links and len(data) < limit:
-                     data.append({'title': r.get('title'), 'post_link': r.get('link')})
-        
-        return [{'title': p.get('title'), 'link': p.get('post_link')} for p in data if isinstance(p, dict)]
-    except Exception as e:
-        print(f"DB Error (get_relevant_posts): {e}")
-        return get_published_posts(limit)
 
 def update_post_link(asin, post_link):
     """Updates the post_link for a published product."""
-    if not SUPABASE_URL: return
+    if not SUPABASE_URL:
+        return
     try:
         url = f"{SUPABASE_URL}/rest/v1/products?asin=eq.{asin}"
         requests.patch(url, headers=get_headers(), json={'post_link': post_link})
@@ -179,3 +110,159 @@ def update_post_link(asin, post_link):
         print(f"DB Error (update_link): {e}")
 
 
+# ---------------------------------------------------------------------------
+# Related / similar product helpers
+# ---------------------------------------------------------------------------
+def get_similar_products(current_asin, limit=2):
+    """Fetches random other products for comparison tables."""
+    if not SUPABASE_URL:
+        return []
+    try:
+        url = (
+            f"{SUPABASE_URL}/rest/v1/products"
+            f"?asin=neq.{current_asin}"
+            f"&select=title,price,rating,review_count,image_url,product_url"
+            f"&limit=20"
+        )
+        response = requests.get(url, headers=get_headers())
+        products = response.json()
+        if not products or not isinstance(products, list):
+            if isinstance(products, dict):
+                print(f"DB Error (similar): {products}")
+            return []
+        if len(products) > limit:
+            return random.sample(products, limit)
+        return products
+    except Exception as e:
+        print(f"DB Error (similar): {e}")
+        return []
+
+
+def get_published_posts(limit=5):
+    """Fetches a list of recently published posts."""
+    if not SUPABASE_URL:
+        return []
+    try:
+        url = (
+            f"{SUPABASE_URL}/rest/v1/products"
+            f"?is_published=eq.true"
+            f"&post_link=not.is.null"
+            f"&select=title,post_link"
+            f"&order=created_at.desc"
+            f"&limit={limit}"
+        )
+        response = requests.get(url, headers=get_headers())
+        data = response.json()
+        return [{'title': p['title'], 'link': p['post_link']} for p in data]
+    except Exception as e:
+        print(f"DB Error (get_posts): {e}")
+        return []
+
+
+def get_relevant_posts(keyword, limit=5):
+    """
+    Fetches contextually relevant posts for internal linking (Silo).
+    Falls back to recent posts if no match is found.
+    """
+    if not SUPABASE_URL:
+        return []
+    try:
+        clean_kw = keyword.replace(' ', '%')
+        url = (
+            f"{SUPABASE_URL}/rest/v1/products"
+            f"?is_published=eq.true"
+            f"&post_link=not.is.null"
+            f"&title=ilike.*{clean_kw}*"
+            f"&select=title,post_link"
+            f"&order=created_at.desc"
+            f"&limit={limit}"
+        )
+        response = requests.get(url, headers=get_headers())
+        data = response.json()
+
+        # Fallback: mix with recent posts if no specific matches
+        if not data or not isinstance(data, list):
+            if isinstance(data, dict):
+                print(f"DB Unknown Response: {data}")
+            print("[WARNING] No direct relevant links found. Mixing with recent posts.")
+            recent = get_published_posts(limit=limit)
+            if not isinstance(data, list):
+                data = []
+            existing_links = {p.get('post_link') for p in data if isinstance(p, dict)}
+            for r in recent:
+                if r.get('link') not in existing_links and len(data) < limit:
+                    data.append({'title': r.get('title'), 'post_link': r.get('link')})
+
+        return [{'title': p.get('title'), 'link': p.get('post_link')} for p in data if isinstance(p, dict)]
+    except Exception as e:
+        print(f"DB Error (get_relevant_posts): {e}")
+        return get_published_posts(limit)
+
+
+# ---------------------------------------------------------------------------
+# Keyword pool management
+# ---------------------------------------------------------------------------
+def check_keyword_pool_count():
+    """Counts how many keywords in the keyword_pool have status = 'pending'."""
+    if not SUPABASE_URL:
+        return 0
+    try:
+        headers = get_headers()
+        headers["Prefer"] = "count=exact"
+        count_url = f"{SUPABASE_URL}/rest/v1/keyword_pool?status=eq.pending&select=keyword"
+        resp = requests.get(count_url, headers=headers)
+        if resp.status_code == 200:
+            content_range = resp.headers.get("Content-Range", "")
+            if "/" in content_range:
+                return int(content_range.split("/")[-1])
+            return len(resp.json())
+        return 0
+    except Exception as e:
+        print(f"DB Error (check_keyword_pool): {e}")
+        return 0
+
+
+def get_pending_keywords_from_pool(limit=10):
+    """Fetches pending keywords from the Supabase keyword_pool."""
+    if not SUPABASE_URL:
+        return []
+    try:
+        url = (
+            f"{SUPABASE_URL}/rest/v1/keyword_pool"
+            f"?status=eq.pending"
+            f"&select=keyword"
+            f"&limit={limit}"
+        )
+        resp = requests.get(url, headers=get_headers(), timeout=5)
+        if resp.status_code == 200:
+            return [row['keyword'] for row in resp.json()]
+    except Exception as e:
+        print(f"[ERROR] DB Error (get_pending_keywords): {e}")
+    return []
+
+
+def add_keywords_to_pool(keywords):
+    """Inserts new keywords into the keyword_pool table (ignores duplicates)."""
+    if not SUPABASE_URL or not keywords:
+        return
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/keyword_pool"
+        headers = get_headers()
+        headers["Prefer"] = "resolution=ignore-duplicates"
+        payload = [{"id": str(uuid.uuid4()), "keyword": kw, "status": "pending"} for kw in keywords]
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        if response.status_code >= 400:
+            print(f"DB Error (add_keywords): {response.text}")
+    except Exception as e:
+        print(f"DB Error (add_keywords): {e}")
+
+
+def mark_keyword_completed_in_pool(keyword):
+    """Marks a keyword as completed in the Supabase keyword_pool."""
+    if not SUPABASE_URL:
+        return
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/keyword_pool?keyword=eq.{keyword}"
+        requests.patch(url, headers=get_headers(), json={"status": "completed"}, timeout=5)
+    except Exception as e:
+        print(f"[ERROR] DB Error (mark_keyword_completed): {e}")

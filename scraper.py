@@ -148,7 +148,7 @@ def scrape_competitor_text(url):
     Scrapes the main text content from a competitor URL.
     Returns truncated text suitable for AI context.
     """
-    print(f"🕵️ Scraping Competitor: {url}")
+    print(f" Scraping Competitor: {url}")
     for api_key in SCRAPINGANT_API_KEYS:
         try:
             response = requests.get(

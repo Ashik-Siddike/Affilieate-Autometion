@@ -1,104 +1,63 @@
 import requests
-import base64
-from config import WP_URL, WP_USERNAME, WP_APP_PASSWORD
+import time
+from config import NEXT_API_URL, BOT_API_SECRET
 
-def get_auth_header(username=None, password=None):
-    # Use provided credentials or fallback to config
-    user = username if username else WP_USERNAME
-    pwd = password if password else WP_APP_PASSWORD
-    
-    if not user or not pwd:
-        print("❌ Error: Missing WordPress credentials.")
-        return None
-        
-    credentials = f"{user}:{pwd}"
-    token = base64.b64encode(credentials.encode())
-    return {
-        'Authorization': f'Basic {token.decode("utf-8")}',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
-
-def upload_media(image_url, title=None, wp_url=None, wp_username=None, wp_password=None):
+def publish_to_nextjs_with_retry(post_data, headers, max_retries=3):
     """
-    Downloads image from URL and uploads to WordPress.
-    Returns the Media ID.
+    Attempts to publish to Next.js API with exponential backoff on failure.
     """
-    target_url = wp_url if wp_url else WP_URL
-    
-    try:
-        # Download image
-        response = requests.get(image_url)
-        if response.status_code != 200:
-            print(f"Failed to download image from {image_url}")
-            return None
-        
-        filename = image_url.split('/')[-1] or "image.jpg"
-        content_type = response.headers.get('content-type', 'image/jpeg')
-
-        # Upload to WordPress
-        api_url = f"{target_url}/wp-json/wp/v2/media"
-        headers = get_auth_header(wp_username, wp_password)
-        if not headers:
-            return None
+    for attempt in range(max_retries):
+        try:
+            print(f" Publishing to Next.js API: {NEXT_API_URL} (Attempt {attempt + 1}/{max_retries})")
+            response = requests.post(NEXT_API_URL, json=post_data, headers=headers, timeout=15)
             
-        headers.update({
-            "Content-Disposition": f"attachment; filename={filename}",
-            "Content-Type": content_type
-        })
-        
-        wp_response = requests.post(api_url, data=response.content, headers=headers)
-        
-        if wp_response.status_code == 201:
-            data = wp_response.json()
-            return data.get('id'), data.get('source_url')
-        else:
-            print(f"WP Upload Failed: {wp_response.status_code} - {wp_response.text}")
-            return None, None
-
-    except Exception as e:
-        print(f"Error uploading image: {e}")
-        return None, None
-
-def publish_post(title, content, category_id=1, image_url=None, wp_url=None, wp_username=None, wp_password=None, status="publish", publish_date=None):
-    """
-    Creates a new post in WordPress.
-    """
-    target_url = wp_url if wp_url else WP_URL
-    
-    try:
-        api_url = f"{target_url}/wp-json/wp/v2/posts"
-        headers = get_auth_header(wp_username, wp_password)
-        if not headers:
-            return None
+            if response.status_code in [200, 201]:
+                return response
+            elif response.status_code == 429:
+                print(f" Rate limited by Next.js API. Retrying...")
+            else:
+                print(f" Failed to create post: {response.status_code} - {response.text}")
+                
+        except requests.exceptions.RequestException as e:
+            print(f" Network error publishing post: {e}")
             
-        headers.update({'Content-Type': 'application/json'})
+        if attempt < max_retries - 1:
+            backoff_time = (2 ** attempt) * 2  # 2s, 4s, 8s...
+            print(f" Waiting {backoff_time}s before retry...")
+            time.sleep(backoff_time)
+            
+    return None
+
+def publish_post(title, slug, content, image_url, model_number, brand, amazon_link):
+    """
+    Creates a new post via the Next.js Custom API endpoint.
+    """
+    try:
+        headers = {
+            'Content-Type': 'application/json',
+            'x-bot-api-secret': BOT_API_SECRET
+        }
         
         post_data = {
             'title': title,
+            'slug': slug,
             'content': content,
-            'status': status
+            'imageUrl': image_url,
+            'modelNumber': model_number,
+            'brand': brand,
+            'amazonAffiliateLink': amazon_link
         }
         
-        if publish_date:
-            post_data['date'] = publish_date
-            post_data['status'] = 'future'
-
-        wp_image_url = None
-        if image_url:
-            print(f"Uploading featured image: {image_url}")
-            media_id, wp_image_url = upload_media(image_url, title, target_url, wp_username, wp_password)
-            if media_id:
-                post_data['featured_media'] = media_id
-                
-        response = requests.post(api_url, json=post_data, headers=headers)
+        response = publish_to_nextjs_with_retry(post_data, headers)
         
-        if response.status_code == 201:
-            print(f"Post published/scheduled successfully: {title}")
-            return response.json().get('link'), wp_image_url
+        if response and response.status_code in [200, 201]:
+            print(f" Post published successfully: {title}")
+            slug = response.json().get('slug')
+            full_url = f"https://whitlogic.online/watch-reviews/{slug}"
+            return full_url, image_url
         else:
-            print(f"Failed to create post: {response.status_code} - {response.text}")
             return None, None
 
     except Exception as e:
-        print(f"Error creating post: {e}")
-        return None
+        print(f" Error publishing post: {e}")
+        return None, None
