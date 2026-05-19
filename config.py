@@ -103,5 +103,5 @@ BOT_API_SECRET = os.getenv('BOT_API_SECRET', '')
 # Cloudinary Configuration for Image Composition
 CLOUDINARY_URL = os.getenv('CLOUDINARY_URL', '')
 
-# Amazon Affiliate Tag (e.g., "whitlogic-20" for US store)
-AMAZON_AFFILIATE_TAG = os.getenv('AMAZON_AFFILIATE_TAG', '')
+# Amazon Affiliate Tag (e.g., "ashiksiddike-20" for US store)
+AMAZON_AFFILIATE_TAG = os.getenv('AMAZON_AFFILIATE_TAG', 'ashiksiddike-20')
