@@ -51,25 +51,48 @@ def _fetch_with_scrapingant(url: str) -> str | None:
 
 
 def _extract_titles_from_html(html: str) -> list[str]:
-    """Extracts product titles from Amazon Best Seller HTML."""
+    """Extracts ONLY real product titles from Amazon Best Seller HTML."""
+    import json
     titles = []
 
-    # Pattern 1: aria-label on links (most reliable)
-    titles += re.findall(r'aria-label="([^"]{15,150})"', html)
+    # Pattern 1: data-p13n-asin-metadata JSON (most reliable — actual product data)
+    asin_blocks = re.findall(r'data-p13n-asin-metadata="([^"]+)"', html)
+    for block in asin_blocks:
+        try:
+            meta = json.loads(block.replace('&quot;', '"'))
+            if 'productTitle' in meta and len(meta['productTitle']) > 10:
+                titles.append(meta['productTitle'])
+        except Exception:
+            pass
 
-    # Pattern 2: span with class _p13n-zg-list-grid-desktop
-    titles += re.findall(r'class="[^"]*p13n-sc-truncate[^"]*"[^>]*>([^<]{15,150})<', html)
+    # Pattern 2: p13n truncate spans (Amazon bestseller specific)
+    titles += re.findall(r'class="[^"]*p13n-sc-truncate[^"]*"[^>]*>\s*([^<]{15,150})\s*<', html)
 
-    # Pattern 3: plain product name divs
+    # Pattern 3: product title divs
     titles += re.findall(r'"product-title"[^>]*>([^<]{15,150})<', html)
 
-    # Deduplicate and clean
+    # ── Strict filter: remove Amazon navigation/UI garbage ──
+    UI_JUNK_WORDS = {
+        "search", "cart", "home", "orders", "shortcut", "language",
+        "country", "account", "expand", "collapse", "menu", "category",
+        "departments", "select", "choose", "shift", "alt", "ctrl",
+        "forward slash", "show", "hide", "navigation", "skip", "close",
+        "open", "0 items", "items in cart", "sign in", "sign out",
+        "see more", "previous", "next", "best sellers",
+    }
+
     seen = set()
     clean = []
     for t in titles:
         t = t.strip()
-        # Skip navigation/UI text
-        if len(t) < 10 or t.lower() in {"see more", "previous", "next", "best sellers"}:
+        if len(t) < 15 or len(t) > 200:
+            continue
+        t_lower = t.lower()
+        # Skip if contains UI navigation words
+        if any(junk in t_lower for junk in UI_JUNK_WORDS):
+            continue
+        # Must contain real alphabetic words
+        if not re.search(r'[a-zA-Z]{3,}', t):
             continue
         if t not in seen:
             seen.add(t)
