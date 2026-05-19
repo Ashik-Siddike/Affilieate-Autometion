@@ -35,6 +35,38 @@ def run_keyword_discovery():
     except Exception as e:
         print(f"[CYCLE] Keyword discovery warning: {e}")
 
+def load_config_from_supabase() -> dict:
+    """Supabase bot_config table থেকে settings পড়ে। Failure হলে defaults ব্যবহার করে।"""
+    defaults = {
+        "max_keywords":      2,
+        "max_articles":      4,
+        "products_per_kw":   2,
+        "is_paused":         False,
+        "publish_to_social": True,
+    }
+    try:
+        import requests
+        from config import SUPABASE_URL, SUPABASE_KEY
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            return defaults
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/bot_config?select=key,value",
+            headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"},
+            timeout=10
+        )
+        if r.status_code == 200:
+            raw = {row["key"]: row["value"] for row in r.json()}
+            return {
+                "max_keywords":      int(raw.get("max_keywords",      defaults["max_keywords"])),
+                "max_articles":      int(raw.get("max_articles",      defaults["max_articles"])),
+                "products_per_kw":   int(raw.get("products_per_kw",   defaults["products_per_kw"])),
+                "is_paused":         raw.get("is_paused", "false").lower() == "true",
+                "publish_to_social": raw.get("publish_to_social", "true").lower() == "true",
+            }
+    except Exception as e:
+        print(f"[CYCLE] Could not load config from Supabase: {e}. Using defaults.")
+    return defaults
+
 if __name__ == "__main__":
     print("=" * 60)
     print("  WHIT LOGIC — GitHub Actions Single Cycle")
@@ -53,6 +85,20 @@ if __name__ == "__main__":
         'delay_between_keywords': 10,
     }
 
+    # ── Load settings from Supabase bot_config (overrides defaults) ──
+    db_cfg = load_config_from_supabase()
+    print(f"[CYCLE] Loaded config from Supabase: {db_cfg}")
+
+    if db_cfg.get("is_paused", False):
+        send_telegram_alert("<b>⏸️ Bot is PAUSED</b>\nSettings-এ Pause করা আছে। Cycle skip হলো।")
+        print("[CYCLE] Bot is PAUSED via Supabase config. Exiting.")
+        sys.exit(0)
+
+    config['max_keywords']       = db_cfg.get("max_keywords",    config['max_keywords'])
+    config['max_total_articles'] = db_cfg.get("max_articles",    config['max_total_articles'])
+    config['products_per_keyword'] = db_cfg.get("products_per_kw", config['products_per_keyword'])
+    config['trigger_n8n']        = db_cfg.get("publish_to_social", True)
+
     try:
         send_telegram_alert(
             f"<b>GitHub Actions Cycle Started</b>\n"
@@ -65,6 +111,7 @@ if __name__ == "__main__":
 
         # ── Phase 1–5: Scrape → Write → Publish ──
         main(config=config)
+
 
         send_telegram_alert(
             f"<b>GitHub Actions Cycle Complete ✅</b>\n"

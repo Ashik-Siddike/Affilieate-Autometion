@@ -493,7 +493,7 @@ if not sites:
 
 # TABS ARE THE NAVIGATION BAR
 # TABS ARE THE NAVIGATION BAR
-tab1, tab2, tab3, tab_bot, tab_analytics, tab_serp, tab4, tab5 = st.tabs(["📊 Live Monitor", "🌍 Site Manager", "📝 Keywords", "🤖 Bot Engine", "📈 Analytics", "🔍 SERP", "💾 Cloud DB", "🔧 Tools"])
+tab1, tab2, tab3, tab_bot, tab_analytics, tab_serp, tab4, tab5, tab_settings = st.tabs(["📊 Live Monitor", "🌍 Site Manager", "📝 Keywords", "🤖 Bot Engine", "📈 Analytics", "🔍 SERP", "💾 Cloud DB", "🔧 Tools", "⚙️ Settings"])
 
 # --- TAB 2: SITE MANAGER (Logic runs FIRST to define variables) ---
 with tab2:
@@ -1235,3 +1235,138 @@ with kw_col2:
                         st.success("All failed keywords deleted.")
                         st.session_state.pop("kw_pool", None)
                         st.rerun()
+
+# ==========================================
+# ⚙️ TAB: SETTINGS (Bot Config from Supabase)
+# ==========================================
+
+def load_bot_config():
+    """Supabase bot_config table থেকে সব settings load করে।"""
+    if not SUPABASE_URL:
+        return {}
+    try:
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/bot_config?select=key,value",
+            headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+        )
+        if r.status_code == 200:
+            return {row["key"]: row["value"] for row in r.json()}
+        return {}
+    except:
+        return {}
+
+def save_bot_config(key: str, value: str):
+    """Supabase bot_config table-এ একটি setting update করে।"""
+    if not SUPABASE_URL:
+        return False
+    try:
+        r = requests.patch(
+            f"{SUPABASE_URL}/rest/v1/bot_config?key=eq.{key}",
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal"
+            },
+            json={"value": str(value), "updated_at": "now()"}
+        )
+        return r.status_code in [200, 204]
+    except:
+        return False
+
+with tab_settings:
+    st.markdown("## ⚙️ Bot Settings")
+    st.caption("এই settings গুলো Supabase-এ save হয়। পরের cycle থেকে automatically apply হবে।")
+    st.divider()
+
+    # Load current config
+    cfg = load_bot_config()
+    if not cfg:
+        st.warning("⚠️ Supabase bot_config table পাওয়া যাচ্ছে না। SQL চালান প্রথমে।")
+    else:
+        # ── Section 1: Bot Control ──
+        st.markdown("### 🤖 Bot Control")
+        col_pause1, col_pause2 = st.columns([1, 2])
+        with col_pause1:
+            is_paused = cfg.get("is_paused", "false").lower() == "true"
+            paused_toggle = st.toggle("⏸️ Bot Pause করুন", value=is_paused, key="toggle_pause")
+            if paused_toggle != is_paused:
+                if save_bot_config("is_paused", str(paused_toggle).lower()):
+                    st.success("✅ Saved! পরের cycle থেকে apply হবে।")
+                    st.rerun()
+
+        with col_pause2:
+            if paused_toggle:
+                st.error("🔴 Bot এখন PAUSED — কোনো article publish হবে না।")
+            else:
+                st.success("🟢 Bot চালু আছে — স্বয়ংক্রিয়ভাবে কাজ করছে।")
+
+        st.divider()
+
+        # ── Section 2: Article Settings ──
+        st.markdown("### 📝 Article & Keyword Settings")
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            max_kw = int(cfg.get("max_keywords", "2"))
+            new_max_kw = st.slider("🔑 Max Keywords per Cycle", 1, 10, max_kw, key="sl_kw")
+
+        with col2:
+            max_art = int(cfg.get("max_articles", "4"))
+            new_max_art = st.slider("📄 Max Articles per Cycle", 1, 20, max_art, key="sl_art")
+
+        with col3:
+            prod_kw = int(cfg.get("products_per_kw", "2"))
+            new_prod_kw = st.slider("🛒 Products per Keyword", 1, 5, prod_kw, key="sl_prod")
+
+        col_lang1, col_lang2 = st.columns(2)
+        with col_lang1:
+            lang = cfg.get("article_language", "english")
+            new_lang = st.selectbox("🌐 Article Language", ["english", "bengali"], index=0 if lang == "english" else 1, key="sel_lang")
+
+        if st.button("💾 Save Article Settings", use_container_width=True, key="save_article"):
+            results = [
+                save_bot_config("max_keywords", str(new_max_kw)),
+                save_bot_config("max_articles", str(new_max_art)),
+                save_bot_config("products_per_kw", str(new_prod_kw)),
+                save_bot_config("article_language", new_lang),
+            ]
+            if all(results):
+                st.success("✅ Article settings saved successfully!")
+            else:
+                st.error("❌ কিছু settings save হয়নি। Supabase connection চেক করুন।")
+
+        st.divider()
+
+        # ── Section 3: Social Media ──
+        st.markdown("### 📲 Social Media Automation")
+        social_on = cfg.get("publish_to_social", "true").lower() == "true"
+        new_social = st.toggle("📲 Make.com এ post করবে", value=social_on, key="toggle_social")
+        if new_social != social_on:
+            if save_bot_config("publish_to_social", str(new_social).lower()):
+                st.success("✅ Saved!")
+                st.rerun()
+
+        if new_social:
+            st.info(f"🔗 Webhook: `{MAKE_WEBHOOK_URL[:50]}...`" if MAKE_WEBHOOK_URL else "⚠️ MAKE_WEBHOOK_URL not set in .env")
+
+        st.divider()
+
+        # ── Section 4: Amazon Categories ──
+        st.markdown("### 🛍️ Amazon Scraping Categories")
+        current_cats = cfg.get("amazon_categories", "electronics,watches,sports")
+        new_cats = st.text_input("Categories (comma-separated):", value=current_cats, key="inp_cats")
+        st.caption("উদাহরণ: electronics,watches,sports,toys,kitchen")
+
+        if st.button("💾 Save Categories", use_container_width=True, key="save_cats"):
+            if save_bot_config("amazon_categories", new_cats):
+                st.success("✅ Categories saved!")
+            else:
+                st.error("❌ Save failed.")
+
+        st.divider()
+
+        # ── Section 5: Current Config Preview ──
+        with st.expander("📋 Current Config (Supabase থেকে live)"):
+            st.json(cfg)
+
