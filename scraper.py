@@ -171,13 +171,31 @@ def scrape_competitor_text(url):
             continue
     return None
 
+# Watch-related terms — used for niche safety filter
+_WATCH_TERMS = (
+    'watch', 'skmei', 'curren', 'casio', 'fossil',
+    'timepiece', 'wristwatch', 'chronograph', 'quartz',
+    'digital watch', 'analog watch', 'smartwatch',
+)
+
 def search_amazon(keyword, limit=3):
     """
     Searches Amazon for a keyword and returns a list of product URLs.
-    Uses Filtering: > 4 Stars, > 50 Reviews.
+    Niche-locked to WATCHES only.
+    Uses Amazon Watches category filter (n:7141123011).
     """
+    # ── Safety net: ensure keyword always targets watches ──
+    kw_lower = keyword.lower()
+    if not any(term in kw_lower for term in _WATCH_TERMS):
+        keyword = keyword + ' watch'
+        print(f"[NICHE GUARD] Keyword adjusted to: '{keyword}'")
+
     print(f"Searching Amazon for: {keyword}")
-    base_search_url = f"https://www.amazon.com/s?k={keyword.replace(' ', '+')}"
+    # rh=n:7141123011 = Amazon Watches & Accessories department
+    base_search_url = (
+        f"https://www.amazon.com/s?k={keyword.replace(' ', '+')}"
+        "&rh=n%3A7141123011&s=review-rank"
+    )
     
     # Re-use scraping logic (simplified for now, ideally specific function)
     # We need to reuse the key rotation logic.
