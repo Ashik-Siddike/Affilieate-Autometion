@@ -1,0 +1,160 @@
+{
+  "name": "Whit Logic — Full Social Media Auto Publisher",
+  "flow": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebHook",
+      "version": 1,
+      "parameters": { "hook": 0, "maxResults": 1 },
+      "mapper": {},
+      "metadata": {
+        "designer": { "x": 0, "y": 0 },
+        "restore": {
+          "parameters": { "hook": { "label": "Whit Logic Bot Webhook" } }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "module": "util:SetVariables2",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "variables": [
+          {
+            "name": "post_title",
+            "value": "{{1.title}}"
+          },
+          {
+            "name": "post_url",
+            "value": "{{1.url}}"
+          },
+          {
+            "name": "post_image",
+            "value": "{{1.imageUrl}}"
+          },
+          {
+            "name": "twitter_text",
+            "value": "🔥 New Review: {{1.title}}\n\n✅ Read here: {{1.url}}\n\n#Review #Amazon #BestDeals #AffiliateMarketing #ProductReview"
+          },
+          {
+            "name": "facebook_text",
+            "value": "📦 New Product Review!\n\n{{1.title}}\n\n👉 Full review: {{1.url}}\n\n#ProductReview #AmazonDeals #BestBuy"
+          },
+          {
+            "name": "instagram_caption",
+            "value": "🔥 {{1.title}}\n\n💰 Best deal on Amazon!\n✅ Link in bio\n\n#ProductReview #Amazon #BestDeals #Shopping #AffiliateMarketing #Review #MustHave #OnlineShopping #Deal #Gadgets"
+          },
+          {
+            "name": "linkedin_text",
+            "value": "📊 New Product Review Published!\n\n{{1.title}}\n\nI just published an in-depth review. Check it out!\n\n🔗 {{1.url}}\n\n#ProductReview #AffiliateMarketing #Ecommerce #Amazon"
+          },
+          {
+            "name": "pinterest_description",
+            "value": "{{1.title}} - Full Review & Best Price on Amazon. Click to read the complete review!\n\n#ProductReview #Amazon #BestDeals #Shopping"
+          }
+        ]
+      },
+      "metadata": { "designer": { "x": 300, "y": 0 } }
+    },
+    {
+      "id": 3,
+      "module": "twitter:createTweet",
+      "version": 2,
+      "parameters": { "account": 0 },
+      "mapper": {
+        "text": "{{2.twitter_text}}"
+      },
+      "metadata": {
+        "designer": { "x": 600, "y": -400 },
+        "restore": {
+          "parameters": { "account": { "label": "Connect Twitter/X Account" } }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "module": "facebook-pages:createPost",
+      "version": 3,
+      "parameters": { "pageId": 0 },
+      "mapper": {
+        "message": "{{2.facebook_text}}",
+        "link": "{{2.post_url}}"
+      },
+      "metadata": {
+        "designer": { "x": 600, "y": -200 },
+        "restore": {
+          "parameters": { "pageId": { "label": "Connect Facebook Page" } }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "module": "instagram:createMediaObject",
+      "version": 1,
+      "parameters": { "accountId": 0 },
+      "mapper": {
+        "imageUrl": "{{2.post_image}}",
+        "caption": "{{2.instagram_caption}}"
+      },
+      "metadata": {
+        "designer": { "x": 600, "y": 0 },
+        "restore": {
+          "parameters": { "accountId": { "label": "Connect Instagram Business Account" } }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "module": "linkedin:createUgcPost",
+      "version": 1,
+      "parameters": { "account": 0 },
+      "mapper": {
+        "text": "{{2.linkedin_text}}",
+        "url": "{{2.post_url}}",
+        "title": "{{2.post_title}}"
+      },
+      "metadata": {
+        "designer": { "x": 600, "y": 200 },
+        "restore": {
+          "parameters": { "account": { "label": "Connect LinkedIn Account" } }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "module": "pinterest:createPin",
+      "version": 1,
+      "parameters": { "account": 0 },
+      "mapper": {
+        "title": "{{2.post_title}}",
+        "description": "{{2.pinterest_description}}",
+        "link": "{{2.post_url}}",
+        "imageUrl": "{{2.post_image}}"
+      },
+      "metadata": {
+        "designer": { "x": 600, "y": 400 },
+        "restore": {
+          "parameters": { "account": { "label": "Connect Pinterest Account" } }
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "instant": true,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": { "orphans": [] },
+    "zone": "us2.make.com"
+  }
+}
