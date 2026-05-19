@@ -198,10 +198,59 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
     - **Experience:** Simulate real experience. Say "I felt..." or "In my testing...".
     """
 
+    # ── Inject Amazon Affiliate Tag into CTA link ──
+    from config import AMAZON_AFFILIATE_TAG
+    if AMAZON_AFFILIATE_TAG and product_link and product_link != '#':
+        sep = '&' if '?' in product_link else '?'
+        product_link_with_tag = f"{product_link}{sep}tag={AMAZON_AFFILIATE_TAG}"
+    else:
+        product_link_with_tag = product_link
+
+    # ── Article Variety: 33% chance of Top 10, 67% standard review ──
+    article_type = random.choice(["review", "review", "top10"])
+
     # ======================================================
     # 📝 USER PROMPT (Structure & Content)
     # ======================================================
-    prompt = f"""
+    if article_type == "top10":
+        keyword_words = title.split()[:3]
+        list_topic = " ".join(keyword_words)
+        prompt = f"""
+    Write a complete, HTML-formatted "Top 10 Best {list_topic}" list article in **{language}** language.
+    Use this product as the #1 recommendation: **{title}** (Price: {price}, Rating: {rating} stars)
+
+    {skyscraper_instruction}
+    {comparison_text}
+    {links_text}
+
+    ### STRUCTURE:
+    {video_instruction}
+
+    1. `<h1>Top 10 Best {list_topic} in 2025</h1>` + 150-word intro
+    2. Quick Comparison Table (HTML): Rank | Product | Price | Rating | Best For
+       — Feature our product as #1, add 4 generic placeholders (#2-#5)
+    3. #1 Full review of **{title}** (200 words)
+    4. #2-#5: 50-word placeholders each
+    5. FAQ: 3 questions
+    6. Final Verdict + CTA button:
+    <a href="{product_link_with_tag}" target="_blank" rel="nofollow sponsored"
+       style="display:inline-block;background:#FF9900;color:#000;padding:12px 24px;border-radius:6px;font-weight:bold;text-decoration:none;">
+       ✅ Check #1 Pick Price on Amazon
+    </a>
+
+    Output raw HTML body only.
+
+    ```json
+    {{
+      "fb_content": "🔥 TOP 10 {list_topic} RANKED!\\n\\nI've tested dozens. Here's my honest #1 pick: {title}\\n\\n👇 Full list: [post_link]\\n\\n#BestOf2025 #Shopping",
+      "pin_title": "Top 10 Best {list_topic} 2025 — Expert Ranked",
+      "pin_desc": "Looking for the best {list_topic}? We tested 10 options. {title} is our #1 pick. Save this for later! 🛒",
+      "ig_content": "✨ 10 best {list_topic} — ranked by testing!\\n\\n#1: {title}\\n\\n🔗 Full breakdown in bio link!\\n\\n#TopPick #ProductReview #BestOf2025"
+    }}
+    ```
+    """
+    else:
+        prompt = f"""
     Write a complete, HTML-formatted product review for: **{title}**
     in **{language}** language.
     
@@ -250,8 +299,13 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
     - Who exactly should buy this? (Persona based).
 
     **CTA Requirements:**
-    - Use this exact Amazon link: {product_link}
-    - Insert a "Check Price on Amazon" button after the Intro and at the very end.
+    - Use this exact Amazon link with affiliate tag: {product_link_with_tag}
+    - Insert a "Check Price on Amazon" button after the Intro and at the very end:
+    <a href="{product_link_with_tag}" target="_blank" rel="nofollow sponsored"
+       style="display:inline-block;background:#FF9900;color:#000;padding:12px 24px;border-radius:6px;font-weight:bold;text-decoration:none;">
+       ✅ Check Price on Amazon
+    </a>
+
     
     **Formatting:**
     - Output raw HTML body only (no ```html tags).

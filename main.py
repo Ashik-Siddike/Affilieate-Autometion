@@ -350,15 +350,26 @@ def main(config=None, log_function=print, site_config=None):
                     if config['trigger_n8n']:
                         log_function("[MAKE] Triggering Make.com social media automation...")
                         make_image = wp_image_url or image_url or "https://dummyimage.com/800x800/eee/333.jpg&text=Product"
+
+                        # ── Add Amazon Affiliate Tag to product URL ──
+                        from config import AMAZON_AFFILIATE_TAG
+                        product_link = product_data.get('product_url', '')
+                        if AMAZON_AFFILIATE_TAG and product_link:
+                            sep = '&' if '?' in product_link else '?'
+                            product_link = f"{product_link}{sep}tag={AMAZON_AFFILIATE_TAG}"
+
+                        # ── Payload must match Make.com webhook field names ──
                         make_payload = {
-                            "main_title": product_data.get('title', ''),
-                            "wp_link":    post_link,
-                            "image_url":  make_image,
+                            "title":      product_data.get('title', ''),
+                            "url":        post_link,
+                            "imageUrl":   make_image,
+                            "amazonUrl":  product_link,
+                            "keyword":    keyword,
+                            "brand":      brand,
                             "fb_content": social_data.get('fb_content', ''),
                             "pin_title":  social_data.get('pin_title', ''),
                             "pin_desc":   social_data.get('pin_desc', ''),
                             "ig_content": social_data.get('ig_content', ''),
-                            "x_content":  social_data.get('x_content', ''),
                         }
                         webhook_url  = site_config.get('n8n_webhook') if site_config and site_config.get('n8n_webhook') else None
                         make_success = make_handler.send_to_make_webhook(make_payload, webhook_url=webhook_url)
@@ -368,6 +379,7 @@ def main(config=None, log_function=print, site_config=None):
                         else:
                             log_function("[WARNING] Make.com webhook failed. Check logs.")
                             stats['errors'] += 1
+
                 else:
                     log_function("[ERROR] Publishing failed.")
                     stats['errors'] += 1
