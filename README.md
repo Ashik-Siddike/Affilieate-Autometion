@@ -530,4 +530,53 @@ git push
 
 ---
 
+## 📲 Social Media Automation (Make.com)
+
+আমাদের bot প্রতিটি article publish করার পর **Make.com** webhook-এর মাধ্যমে automatically social media-তে post করে।
+
+### 🔗 Make.com Scenario Template
+
+নতুন করে Make.com scenario তৈরি করতে হলে এই **public template** link ব্যবহার করুন:
+
+> **👉 [Whit Logic — Social Media Auto Publisher Template](https://us2.make.com/public/shared-scenario/iC9JeBLAtXk/integration-webhooks-facebook-pages-in)**
+
+### কীভাবে import করবেন:
+1. উপরের link-এ যান
+2. **"Use this template"** বা **"Create scenario from template"** click করুন
+3. Make.com account-এ login করুন
+4. প্রতিটি module-এ নিজের account connect করুন:
+   - 📘 Facebook Pages → আপনার Page
+   - 📸 Instagram for Business → আপনার IG account
+   - 📌 Pinterest → আপনার Board
+   - 💼 LinkedIn → আপনার account
+5. **Webhook URL** copy করুন → GitHub Secret `MAKE_WEBHOOK_URL` update করুন
+
+### Scenario Structure:
+```
+[Custom Webhook] → [Router]
+                      ├── Facebook Pages → Create a Post
+                      ├── Instagram for Business → Create a Photo Post
+                      ├── Pinterest → Create a Pin
+                      └── LinkedIn → Create a Share Post
+```
+
+### Webhook Data Format (bot থেকে যা আসে):
+```json
+{
+  "title": "Article title",
+  "url": "https://www.whitlogic.online/article-slug",
+  "imageUrl": "https://res.cloudinary.com/dduxtar6i/...",
+  "keyword": "product keyword",
+  "brand": "Brand Name"
+}
+```
+
+### GitHub Secrets যা লাগবে:
+| Secret | Value |
+|--------|-------|
+| `MAKE_WEBHOOK_URL` | `https://hook.us2.make.com/ibqcj99b0upzsy1h5ffmqtpo6v544tz3` |
+| `CLOUDINARY_URL` | `cloudinary://API_KEY:API_SECRET@CLOUD_NAME` |
+
+---
+
 *Built with ❤️ for autonomous Amazon affiliate monetization — Whit Logic Platform*
