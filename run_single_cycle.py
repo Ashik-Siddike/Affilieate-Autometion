@@ -14,6 +14,27 @@ if hasattr(sys.stdout, 'reconfigure'):
 from main import main, send_telegram_alert
 from datetime import datetime
 
+def run_keyword_discovery():
+    """Phase 0: Amazon Best Sellers থেকে নতুন keywords discover করে Supabase-এ save করে।"""
+    try:
+        from keyword_discoverer import discover_watch_keywords
+        import database
+
+        # Supabase-এ pending keywords কতটা আছে তা চেক করি
+        pending = database.get_pending_keywords(limit=50)
+        pending_count = len(pending) if pending else 0
+        print(f"[CYCLE] Pending keywords in pool: {pending_count}")
+
+        # ৫টির কম থাকলে নতুন discover করি
+        if pending_count < 5:
+            print("[CYCLE] Keyword pool low — starting auto-discovery from Amazon Best Sellers...")
+            new_kws = discover_watch_keywords(limit=20)
+            print(f"[CYCLE] Discovered & saved {len(new_kws)} new keywords.")
+        else:
+            print("[CYCLE] Keyword pool sufficient — skipping discovery.")
+    except Exception as e:
+        print(f"[CYCLE] Keyword discovery warning: {e}")
+
 if __name__ == "__main__":
     print("=" * 60)
     print("  WHIT LOGIC — GitHub Actions Single Cycle")
@@ -38,7 +59,13 @@ if __name__ == "__main__":
             f"Time: {datetime.now().strftime('%H:%M')} UTC\n"
             f"Keywords: {config['max_keywords']} | Articles: {config['max_total_articles']}"
         )
+
+        # ── Phase 0: Auto-discover keywords if pool is low ──
+        run_keyword_discovery()
+
+        # ── Phase 1–5: Scrape → Write → Publish ──
         main(config=config)
+
         send_telegram_alert(
             f"<b>GitHub Actions Cycle Complete ✅</b>\n"
             f"Time: {datetime.now().strftime('%H:%M')} UTC"
@@ -52,3 +79,4 @@ if __name__ == "__main__":
             f"<code>{str(e)[:300]}</code>"
         )
         sys.exit(1)
+
