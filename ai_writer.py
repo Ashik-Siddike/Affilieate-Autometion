@@ -5,7 +5,7 @@ import random
 import requests
 import re
 import json
-import google.generativeai as genai
+from google import genai
 
 # API Key Rotation System (Similar to ScrapingAnt)
 _current_key_index = 0  # Track current API key index
@@ -43,8 +43,7 @@ def is_quota_error(error):
 
 def get_gemini_model(api_key):
     """Creates and returns a Gemini model instance with the given API key."""
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel('gemini-1.5-flash')
+    return genai.Client(api_key=api_key)
 
 def find_review_video(product_name):
     """Searches YouTube for a review video and returns an embed code."""
@@ -338,7 +337,7 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
         
         try:
             final_prompt = system_instruction + "\n\n" + prompt
-            genai.configure(api_key=current_key)
+            client = genai.Client(api_key=current_key)
             
             response   = None
             last_error = None
@@ -359,11 +358,12 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
 
             for model_name in preferred_models:
                 try:
-                    model = genai.GenerativeModel(model_name)
-
                     # Fluff-check validation loop
                     for fluff_attempt in range(MAX_FLUFF_RETRIES):
-                        r = model.generate_content(final_prompt)
+                        r = client.models.generate_content(
+                            model=model_name,
+                            contents=final_prompt
+                        )
                         if r and r.text:
                             found_fluff = [w for w in FLUFF_WORDS if w in r.text.lower()]
                             if not found_fluff:
@@ -393,13 +393,15 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
             if not response:
                 print("[AI] Standard models failed. Auto-discovering available models...")
                 try:
-                    all_models   = list(genai.list_models())
-                    valid_models = [m.name for m in all_models if 'generateContent' in m.supported_generation_methods]
+                    all_models   = list(client.models.list())
+                    valid_models = [m.name for m in all_models if hasattr(m, 'supported_generation_methods') and 'generateContent' in m.supported_generation_methods or 'gemini' in m.name.lower()]
                     if valid_models:
                         best_model = next((m for m in valid_models if 'flash' in m), valid_models[0])
                         print(f"[AI] Auto-selected: {best_model}")
-                        model    = genai.GenerativeModel(best_model)
-                        response = model.generate_content(final_prompt)
+                        response = client.models.generate_content(
+                            model=best_model,
+                            contents=final_prompt
+                        )
                     else:
                         print("[AI] No valid models found on this key.")
                         if last_error:

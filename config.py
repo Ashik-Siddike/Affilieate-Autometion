@@ -73,19 +73,22 @@ N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "")
 # Make.com Webhook URL (For new social media automation)
 MAKE_WEBHOOK_URL = os.getenv("MAKE_WEBHOOK_URL", "https://n8n.srv915514.hstgr.cloud/webhook/amazon-master-webhook")
 
-# Niche Keywords for Auto-Discovery
-NICHE_KEYWORDS = [
-    "best handheld retro gaming console 2025",
-    "top rated retro game sticks for tv",
-    "best budget handheld emulator under $100",
-    "retro game console with built-in games review",
-    "best handheld console for 90s games",
-    "portable retro game console for adults",
-    "best plug and play game stick 4k",
-    "Anbernic RG35XX review and features",
-    "best retro console for super nintendo games",
-    "top 5 handheld game consoles for car trips"
-]
+# Niche Categories for Auto-Discovery (Used if Supabase is empty)
+NICHE_KEYWORDS = {
+    "watches": [
+        "best budget tactical watch 2025",
+        "SKMEI waterproof sports watch review",
+        "CURREN luxury watch under 50",
+    ],
+    "gadgets": [
+        "best budget wireless earbuds 2025",
+        "cheap smart home devices for beginners",
+    ],
+    "gaming": [
+        "best handheld retro gaming console 2025",
+        "budget 4k game stick review",
+    ]
+}
 
 # Supabase Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")

@@ -2,6 +2,19 @@ import requests
 import time
 from config import NEXT_API_URL, BOT_API_SECRET
 
+def ping_google_sitemap():
+    """Pings Google to notify that the sitemap has been updated."""
+    try:
+        sitemap_url = "https://whitlogic.online/sitemap.xml"
+        ping_url = f"https://www.google.com/ping?sitemap={sitemap_url}"
+        response = requests.get(ping_url, timeout=10)
+        if response.status_code == 200:
+            print(f" [SEO] Successfully pinged Google with new sitemap.")
+        else:
+            print(f" [SEO] Google ping returned status {response.status_code}")
+    except Exception as e:
+        print(f" [SEO] Error pinging Google: {e}")
+
 def publish_to_nextjs_with_retry(post_data, headers, max_retries=3):
     """
     Attempts to publish to Next.js API with exponential backoff on failure.
@@ -54,6 +67,10 @@ def publish_post(title, slug, content, image_url, model_number, brand, amazon_li
             print(f" Post published successfully: {title}")
             slug = response.json().get('slug')
             full_url = f"https://whitlogic.online/watch-reviews/{slug}"
+            
+            # Ping Google after successful publish
+            ping_google_sitemap()
+            
             return full_url, image_url
         else:
             return None, None
