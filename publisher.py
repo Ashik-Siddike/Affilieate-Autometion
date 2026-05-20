@@ -41,7 +41,7 @@ def publish_to_nextjs_with_retry(post_data, headers, max_retries=3):
             
     return None
 
-def publish_post(title, slug, content, image_url, model_number, brand, amazon_link):
+def publish_post(title, slug, content, image_url, model_number, brand, amazon_link, faqs=None):
     """
     Creates a new post via the Next.js Custom API endpoint.
     """
@@ -58,8 +58,11 @@ def publish_post(title, slug, content, image_url, model_number, brand, amazon_li
             'imageUrl': image_url,
             'modelNumber': model_number,
             'brand': brand,
-            'amazonAffiliateLink': amazon_link
+            'amazonAffiliateLink': amazon_link,
         }
+
+        if faqs:
+            post_data['faqs'] = faqs
         
         response = publish_to_nextjs_with_retry(post_data, headers)
         

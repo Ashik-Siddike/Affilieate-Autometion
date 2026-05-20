@@ -554,3 +554,90 @@ Return ONLY a valid JSON object (no markdown, no extra text) with these exact ke
 
     print("[AI:social] All retries exhausted. Using fallback captions.")
     return FALLBACK
+
+
+def generate_faqs(title: str, brand: str, model_number: str) -> list:
+    """
+    Uses Gemini to generate 6 SEO-optimized FAQ pairs for a product review.
+    Returns a list of {"question": ..., "answer": ...} dicts.
+    Targets Google's "People Also Ask" rich snippets.
+    """
+    FALLBACK = [
+        {"question": f"Is the {brand} {model_number} worth buying?", "answer": f"Yes, the {brand} {model_number} offers excellent value for money. It combines durability, style, and functionality at an affordable price point, making it a top choice for budget-conscious buyers."},
+        {"question": f"Is the {brand} {model_number} waterproof?", "answer": f"The {brand} {model_number} comes with water resistance. We recommend checking the specific ATM/meter rating in our full review above for exact waterproof specifications."},
+        {"question": f"How long does the battery last on the {brand} {model_number}?", "answer": f"Battery life varies by usage mode. In standard mode, the {brand} {model_number} offers excellent battery performance. Refer to the specs table in our review for exact details."},
+        {"question": f"Where can I buy the {brand} {model_number} at the best price?", "answer": f"The best price for the {brand} {model_number} is usually found on Amazon. We recommend checking our affiliate link above for the latest pricing and any available discounts."},
+        {"question": f"What is the warranty on the {brand} {model_number}?", "answer": f"Warranty terms vary by seller. We recommend purchasing from Amazon's fulfilled listings for the best buyer protection and return policy."},
+        {"question": f"How does the {brand} {model_number} compare to other budget watches?", "answer": f"The {brand} {model_number} stands out from competitors in its price range by offering a combination of durability, features, and brand reliability. See our detailed comparison in the review above."},
+    ]
+
+    prompt = f"""You are an SEO expert writing FAQ content for a product review blog called "Whit Logic" that focuses on budget tactical watches.
+
+Generate exactly 6 FAQ question-and-answer pairs for this product:
+Product Name: {title}
+Brand: {brand}
+Model: {model_number}
+
+Rules:
+- Questions must be what real customers search on Google (natural language)
+- Answers must be 2-3 sentences, helpful, and conversational
+- Mix question types: "Is it worth it?", "Is it waterproof?", "Battery life?", "Best price?", "How to set time?", "vs competitors?"
+- Do NOT mention specific prices (they change)
+- Answers should encourage reading the full review
+
+Return ONLY a valid JSON array (no markdown, no extra text):
+[
+  {{"question": "...", "answer": "..."}},
+  {{"question": "...", "answer": "..."}},
+  {{"question": "...", "answer": "..."}},
+  {{"question": "...", "answer": "..."}},
+  {{"question": "...", "answer": "..."}},
+  {{"question": "...", "answer": "..."}}
+]"""
+
+    max_attempts = len(GEMINI_API_KEYS) * 2
+    for attempt in range(max_attempts):
+        try:
+            api_key = get_current_gemini_key()
+            client = get_gemini_model(api_key)
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt,
+            )
+            raw = response.text.strip()
+            raw = re.sub(r'```(?:json)?\s*', '', raw)
+            raw = re.sub(r'```\s*', '', raw).strip()
+
+            start = raw.find('[')
+            end = raw.rfind(']') + 1
+            if start == -1 or end == 0:
+                raise ValueError("No JSON array found.")
+
+            faqs = json.loads(raw[start:end])
+            if not isinstance(faqs, list) or len(faqs) < 3:
+                raise ValueError("Invalid FAQ list structure.")
+
+            # Validate each item
+            validated = []
+            for item in faqs:
+                if isinstance(item, dict) and item.get('question') and item.get('answer'):
+                    validated.append({"question": item['question'], "answer": item['answer']})
+
+            if len(validated) < 3:
+                raise ValueError("Not enough valid FAQ items.")
+
+            print(f"[AI] FAQ generated: {len(validated)} questions.")
+            return validated
+
+        except Exception as e:
+            if is_quota_error(e):
+                print(f"[AI:faq] Quota exceeded (attempt {attempt+1}). Switching key...")
+                switch_to_next_gemini_key()
+                time.sleep(2)
+            else:
+                print(f"[AI:faq] Error (attempt {attempt+1}): {e}. Switching key...")
+                switch_to_next_gemini_key()
+                time.sleep(1)
+
+    print("[AI:faq] All retries exhausted. Using fallback FAQs.")
+    return FALLBACK

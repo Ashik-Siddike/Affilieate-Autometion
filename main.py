@@ -313,6 +313,18 @@ def main(config=None, log_function=print, site_config=None):
                 social_data = social_captions
             log_function("[AI] ✅ Social captions ready for all platforms.")
 
+            # Generate FAQs for rich snippets
+            log_function("[AI] Generating FAQ rich snippets...")
+            import re as _re
+            _brand_match = _re.search(r'^(SKMEI|CURREN|CASIO|TIMEX|FOSSIL|SEIKO|CITIZEN)', product_data.get('title', ''), _re.IGNORECASE)
+            _brand_for_faq = _brand_match.group(1).upper() if _brand_match else 'Tactical Watch'
+            faqs = ai_writer.generate_faqs(
+                title=product_data.get('title', ''),
+                brand=_brand_for_faq,
+                model_number=asin,
+            )
+            log_function(f"[AI] ✅ {len(faqs)} FAQ pairs generated.")
+
             # SEO Analysis
             seo_result = seo_checker.analyze(article_content, keyword)
             log_function(f"[SEO] Score: {seo_result['score']}/100")
@@ -364,6 +376,7 @@ def main(config=None, log_function=print, site_config=None):
                     model_number=asin,
                     brand=brand,
                     amazon_link=product_data['product_url'],
+                    faqs=faqs,
                 )
 
                 if isinstance(publish_result, tuple):
