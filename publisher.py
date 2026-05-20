@@ -41,7 +41,23 @@ def publish_to_nextjs_with_retry(post_data, headers, max_retries=3):
             
     return None
 
-def publish_post(title, slug, content, image_url, model_number, brand, amazon_link, faqs=None):
+def detect_category(title: str, keyword: str = '') -> str:
+    """Auto-detects category from product title and keyword."""
+    text = (title + ' ' + keyword).lower()
+    if any(w in text for w in ['waterproof', 'water resistant', 'dive', 'swimming', '200m', '100m', '50m', 'atm']):
+        return 'waterproof'
+    if any(w in text for w in ['under 20', 'under $20', 'budget', 'cheap', 'affordable', 'value']):
+        return 'budget-under-20'
+    if any(w in text for w in ['digital', 'led', 'lcd', 'electronic', 'alarm']):
+        return 'digital'
+    if any(w in text for w in ['military', 'army', 'tactical', 'outdoor', 'hiking', 'camping', 'survival']):
+        return 'tactical'
+    if any(w in text for w in ['sport', 'running', 'fitness', 'gym', 'workout', 'chronograph']):
+        return 'sports'
+    return 'tactical'
+
+
+def publish_post(title, slug, content, image_url, model_number, brand, amazon_link, faqs=None, keyword=''):
     """
     Creates a new post via the Next.js Custom API endpoint.
     """
