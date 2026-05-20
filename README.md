@@ -255,7 +255,22 @@ npx prisma db push
 
 ## 🚀 Running the Project
 
-### ▶ Bot Dashboard (Streamlit GUI) — সবচেয়ে সহজ উপায়
+### ☁️ Bot Dashboard (Streamlit Cloud) — লাইভ সার্ভার (Recommended)
+
+Bot-টি বর্তমানে **Streamlit Cloud**-এ ডিপ্লয় করা আছে। আপনি যেকোনো জায়গা থেকে এটি অ্যাক্সেস করে অটোমেশন কন্ট্রোল করতে পারবেন:
+
+> **🔗 Live Dashboard:** [https://whitlogicautomation.streamlit.app/](https://whitlogicautomation.streamlit.app/)
+
+Dashboard থেকে:
+1. **"IGNITE AUTOMATION"** বাটন ক্লিক করুন — bot চালু হবে
+2. Real-time logs দেখুন
+3. Published articles এবং stats দেখুন
+
+---
+
+### ▶ Local Development (Streamlit GUI)
+
+যদি আপনি আপনার নিজের কম্পিউটারে (Locally) চালাতে চান:
 
 ```bash
 # Virtual environment activate করুন (যদি না থাকে)
@@ -266,11 +281,6 @@ streamlit run gui.py
 ```
 
 Browser-এ যান: **http://localhost:8501**
-
-Dashboard থেকে:
-1. **"IGNITE AUTOMATION"** বাটন ক্লিক করুন — bot চালু হবে
-2. Real-time logs দেখুন
-3. Published articles এবং stats দেখুন
 
 ---
 
