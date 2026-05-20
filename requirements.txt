@@ -8,3 +8,5 @@ youtube-search-python
 
 cloudinary
 Pillow
+rembg
+onnxruntime

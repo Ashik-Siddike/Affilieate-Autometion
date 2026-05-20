@@ -22,6 +22,14 @@ import cloudinary.uploader
 
 from config import CLOUDINARY_URL
 
+try:
+    from rembg import remove
+    from rembg.session_factory import new_session
+    REMBG_SESSION = new_session("u2netp")
+except ImportError:
+    remove = None
+    REMBG_SESSION = None
+
 # ── Cloudinary bootstrap ────────────────────────────────────────────────────
 if CLOUDINARY_URL:
     cloudinary.config(url=CLOUDINARY_URL)
@@ -267,6 +275,11 @@ def compose_image(raw_image_url: str, title: str = "") -> str:
         resp.raise_for_status()
         source_img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
 
+        # ── Background Removal (rembg) ───────────────────────────────────
+        if remove and REMBG_SESSION:
+            print("[COMPOSE] Applying AI background removal...")
+            source_img = remove(source_img, session=REMBG_SESSION)
+
         # ── 2. Aspect-ratio-safe resize (LANCZOS, no distortion) ─────────
         source_img.thumbnail(
             (580, 580),                     # max product area within 800×800
@@ -319,3 +332,102 @@ def compose_image(raw_image_url: str, title: str = "") -> str:
     except Exception as exc:
         print(f"[COMPOSE] Composition failed ({exc}). Falling back to raw URL.")
         return raw_image_url
+
+def compose_pinterest_image(raw_image_url: str, title: str = "") -> str:
+    """
+    Downloads a product image, composes a 1000x1500 Pinterest-optimized graphic,
+    uploads to Cloudinary, and returns the CDN URL.
+    """
+    if not CLOUDINARY_URL:
+        return raw_image_url
+
+    try:
+        resp = requests.get(raw_image_url, timeout=15)
+        resp.raise_for_status()
+        source_img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+
+        # ── Background Removal (rembg) ───────────────────────────────────
+        if remove and REMBG_SESSION:
+            print("[COMPOSE] Applying AI background removal...")
+            source_img = remove(source_img, session=REMBG_SESSION)
+
+        # Resize to fit within 800x800 for the center of Pinterest image
+        source_img.thumbnail((800, 800), Image.Resampling.LANCZOS)
+        shadowed = _add_drop_shadow(source_img)
+
+        # 1000x1500 canvas
+        canvas = Image.new("RGB", (1000, 1500))
+        
+        # Draw gradient manually for 1000x1500
+        pixels = canvas.load()
+        cx, cy = 500, 750
+        max_radius = math.hypot(cx, cy)
+        rc, gc, bc = GRAD_CENTER_COLOR
+        re, ge, be = GRAD_EDGE_COLOR
+        for y in range(1500):
+            for x in range(1000):
+                dist = math.hypot(x - cx, y - cy)
+                t = min(dist / max_radius, 1.0)
+                r = int(rc + (re - rc) * t)
+                g = int(gc + (ge - gc) * t)
+                b = int(bc + (be - bc) * t)
+                pixels[x, y] = (r, g, b)
+
+        canvas_rgba = canvas.convert("RGBA")
+        
+        # Center the shadowed watch
+        sx = (1000 - shadowed.width) // 2
+        sy = (1500 - shadowed.height) // 2
+        canvas_rgba.paste(shadowed, (sx, sy), shadowed)
+        
+        canvas = canvas_rgba.convert("RGB")
+        draw = ImageDraw.Draw(canvas)
+
+        # Top text
+        top_font = _load_font(48, bold=True)
+        _draw_stroked_text(draw, (500, 150), "EXPERT REVIEW", font=top_font, fill=(251, 191, 36), stroke_width=3, anchor="mm")
+
+        # Bottom Plate
+        plate_h = 300
+        plate_top = 1500 - plate_h
+        
+        overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay)
+        overlay_draw.rectangle([0, plate_top, 1000, 1500], fill=PLATE_COLOR)
+        overlay_draw.rectangle([0, plate_top, 1000, plate_top + 4], fill=(251, 191, 36, 255))
+        
+        # Button/CTA
+        btn_font = _load_font(24, bold=True)
+        overlay_draw.rounded_rectangle([350, plate_top + 180, 650, plate_top + 240], radius=30, fill=(251, 191, 36))
+        overlay_draw.text((500, plate_top + 210), "Read Full Review", font=btn_font, fill=(0,0,0), anchor="mm")
+        
+        canvas.paste(Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB"))
+        draw = ImageDraw.Draw(canvas)
+        
+        # Title in the bottom plate
+        title_font = _load_font(36, bold=True)
+        max_chars = 60
+        display_title = title[:max_chars].rsplit(" ", 1)[0] + "…" if len(title) > max_chars else title
+        display_title = display_title.upper()
+        
+        _draw_stroked_text(draw, (500, plate_top + 100), display_title, font=title_font, fill=(255,255,255), stroke_width=2, anchor="mm")
+
+        # Encode & Upload
+        buf = io.BytesIO()
+        canvas.save(buf, format="JPEG", quality=90, optimize=True)
+        buf.seek(0)
+
+        result = cloudinary.uploader.upload(
+            buf,
+            folder="whitlogic/pinterest",
+            public_id=f"pin_{abs(hash(raw_image_url))}",
+            overwrite=True,
+            resource_type="image",
+        )
+        print(f"[COMPOSE] ✅ Pinterest image ready → {result.get('secure_url')}")
+        return result.get("secure_url", raw_image_url)
+
+    except Exception as exc:
+        print(f"[COMPOSE] Pinterest composition failed ({exc}).")
+        return raw_image_url
+

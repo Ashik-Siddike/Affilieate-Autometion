@@ -141,10 +141,11 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
     
     links_text = ""
     if internal_links and isinstance(internal_links, list):
-        links_text = "### 🔗 Internal Links Context:\n"
+        links_text = "### 🔗 INTERNAL LINKING INSTRUCTION (CRITICAL):\n"
+        links_text += "I am providing you with previously published articles from our site. You MUST naturally weave 1 or 2 of these links into the body paragraphs of your article using contextual HTML anchor tags (e.g. <a href=\"...\">anchor text</a>). Do NOT just list them at the end. Integrate them smoothly as helpful resources.\n\n"
         for p in internal_links:
             if isinstance(p, dict):
-                links_text += f"- Link Title: '{p.get('title', 'Link')}' -> URL: {p.get('link', '#')}\n"
+                links_text += f"- Target URL: {p.get('link', '#')} (Context/Topic: {p.get('title', 'Link')})\n"
 
     # --- 🎥 VIDEO SEARCH ---
     video_embed_code = find_review_video(title)
@@ -483,3 +484,73 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
 
     print("[AI] All API keys and retries exhausted. Returning None.")
     return None, None
+
+
+def generate_social_captions(title: str, brand: str, amazon_url: str, review_url: str) -> dict:
+    """
+    Uses Gemini to generate highly-optimized, platform-specific social media captions.
+    Returns a dict with keys: fb_content, ig_content, pin_title, pin_desc, linkedin_content
+    """
+    FALLBACK = {
+        "fb_content": f"🔥 {title}\n\n💰 Best price on Amazon!\n✅ Full Review → {review_url}\n\n#ProductReview #Amazon #BestDeals",
+        "ig_content": f"🔥 {title}\n\n💰 Best price on Amazon!\n✅ Full review — link in bio\n\n#ProductReview #Amazon #BestDeals #Shopping #AffiliateMarketing #MustHave",
+        "pin_title": f"{title} - Expert Review",
+        "pin_desc": f"{title} — Full Review & Best Price on Amazon! Click to read the complete review! {review_url}\n\n#ProductReview #Amazon #BestDeals #Shopping",
+        "linkedin_content": f"🔎 Just published a detailed review of the {brand} — {title}\n\nGreat value for money! Check it out → {review_url}\n\n#ProductReview #Amazon #Deals",
+    }
+
+    prompt = f"""You are an expert social media copywriter for "Whit Logic", an affiliate blog reviewing budget tactical watches and gear.
+
+Generate platform-optimized social media content for this product:
+Product: {title}
+Brand: {brand}
+Amazon Link: {amazon_url}
+Review Link: {review_url}
+
+Return ONLY a valid JSON object (no markdown, no extra text) with these exact keys:
+{{
+  "fb_content": "Conversational, engaging Facebook post. 2-3 short paragraphs. Include emojis. End with CTA to click the review link. Include 3-5 relevant hashtags.",
+  "ig_content": "Visual, emoji-rich Instagram caption with line breaks. 15-20 hashtags. End with 'Link in bio!'. Do NOT include the actual URL.",
+  "pin_title": "SEO-friendly Pinterest pin title under 100 characters. Focus on value/benefit.",
+  "pin_desc": "Pinterest description under 500 characters. Include the review URL naturally. Add 5-8 hashtags.",
+  "linkedin_content": "Professional, value-driven LinkedIn post. 2-3 paragraphs. Focus on value-for-money. Include review URL. 3-5 professional hashtags."
+}}"""
+
+    max_attempts = len(GEMINI_API_KEYS) * 2
+    for attempt in range(max_attempts):
+        try:
+            api_key = get_current_gemini_key()
+            client = get_gemini_model(api_key)
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt,
+            )
+            raw = response.text.strip()
+            raw = re.sub(r'```(?:json)?\s*', '', raw)
+            raw = re.sub(r'```\s*', '', raw).strip()
+
+            start = raw.find('{')
+            end = raw.rfind('}') + 1
+            if start == -1 or end == 0:
+                raise ValueError("No JSON found in response.")
+
+            captions = json.loads(raw[start:end])
+            for key in FALLBACK:
+                if key not in captions or not captions[key]:
+                    captions[key] = FALLBACK[key]
+
+            print("[AI] ✅ Platform-specific social captions generated.")
+            return captions
+
+        except Exception as e:
+            if is_quota_error(e):
+                print(f"[AI:social] Quota exceeded (attempt {attempt+1}). Switching key...")
+                switch_to_next_gemini_key()
+                time.sleep(2)
+            else:
+                print(f"[AI:social] Error (attempt {attempt+1}): {e}. Switching key...")
+                switch_to_next_gemini_key()
+                time.sleep(1)
+
+    print("[AI:social] All retries exhausted. Using fallback captions.")
+    return FALLBACK

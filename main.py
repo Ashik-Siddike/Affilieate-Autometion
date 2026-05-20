@@ -297,6 +297,22 @@ def main(config=None, log_function=print, site_config=None):
             max_art = config['max_total_articles'] if config['max_total_articles'] > 0 else 'unlimited'
             log_function(f"[AI] Article generated ({stats['articles_generated']}/{max_art}).")
 
+            # Generate platform-specific social media captions
+            log_function("[AI] Generating platform-specific social media captions...")
+            _tmp_post_link = f"https://whitlogic.online/watch-reviews/{product_data.get('asin','').lower()}"
+            social_captions = ai_writer.generate_social_captions(
+                title=product_data.get('title', ''),
+                brand=product_data.get('brand', brand if 'brand' in dir() else ''),
+                amazon_url=product_data.get('product_url', ''),
+                review_url=_tmp_post_link,
+            )
+            # Merge AI captions over any social_data from article generation
+            if social_data and isinstance(social_data, dict):
+                social_data.update(social_captions)
+            else:
+                social_data = social_captions
+            log_function("[AI] ✅ Social captions ready for all platforms.")
+
             # SEO Analysis
             seo_result = seo_checker.analyze(article_content, keyword)
             log_function(f"[SEO] Score: {seo_result['score']}/100")
@@ -317,6 +333,7 @@ def main(config=None, log_function=print, site_config=None):
                 # Image composition
                 raw_image_url = product_data.get('image_url')
                 image_url     = image_composer.compose_image(raw_image_url, title=product_data.get('title'))
+                pinterest_image_url = image_composer.compose_pinterest_image(raw_image_url, title=product_data.get('title'))
 
                 # Scheduling
                 publish_status   = 'publish'
@@ -375,16 +392,18 @@ def main(config=None, log_function=print, site_config=None):
 
                         # ── Payload must match Make.com webhook field names ──
                         make_payload = {
-                            "title":      product_data.get('title', ''),
-                            "url":        post_link,
-                            "imageUrl":   make_image,
-                            "amazonUrl":  product_link,
-                            "keyword":    keyword,
-                            "brand":      brand,
-                            "fb_content": social_data.get('fb_content', ''),
-                            "pin_title":  social_data.get('pin_title', ''),
-                            "pin_desc":   social_data.get('pin_desc', ''),
-                            "ig_content": social_data.get('ig_content', ''),
+                            "title":            product_data.get('title', ''),
+                            "url":              post_link,
+                            "imageUrl":         make_image,
+                            "pinterestImageUrl": pinterest_image_url,
+                            "amazonUrl":        product_link,
+                            "keyword":          keyword,
+                            "brand":            brand,
+                            "fb_content":       social_data.get('fb_content', ''),
+                            "pin_title":        social_data.get('pin_title', ''),
+                            "pin_desc":         social_data.get('pin_desc', ''),
+                            "ig_content":       social_data.get('ig_content', ''),
+                            "linkedin_content": social_data.get('linkedin_content', ''),
                         }
                         webhook_url  = site_config.get('n8n_webhook') if site_config and site_config.get('n8n_webhook') else None
                         make_success = make_handler.send_to_make_webhook(make_payload, webhook_url=webhook_url)
