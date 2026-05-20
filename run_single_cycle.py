@@ -15,7 +15,7 @@ from main import main, send_telegram_alert
 from datetime import datetime
 
 def run_keyword_discovery():
-    """Phase 0: Amazon Best Sellers থেকে নতুন keywords discover করে Supabase-এ save করে।"""
+    """Phase 0: Amazon Best Sellers + Google Trends থেকে নতুন keywords discover করে Supabase-এ save করে।"""
     try:
         from keyword_discoverer import discover_watch_keywords
         import database
@@ -27,9 +27,22 @@ def run_keyword_discovery():
 
         # ৫টির কম থাকলে নতুন discover করি
         if pending_count < 5:
-            print("[CYCLE] Keyword pool low — starting auto-discovery from Amazon Best Sellers...")
-            new_kws = discover_watch_keywords(limit=20)
-            print(f"[CYCLE] Discovered & saved {len(new_kws)} new keywords.")
+            print("[CYCLE] Keyword pool low — starting auto-discovery...")
+            
+            # Phase 0a: Amazon Best Sellers থেকে
+            try:
+                new_kws = discover_watch_keywords(limit=10)
+                print(f"[CYCLE] Amazon discovery: {len(new_kws)} new keywords.")
+            except Exception as e:
+                print(f"[CYCLE] Amazon discovery warning: {e}")
+            
+            # Phase 0b: Google Trends থেকে
+            try:
+                from google_trends_discoverer import discover_and_save
+                trend_kws = discover_and_save(limit=10)
+                print(f"[CYCLE] Google Trends discovery: {len(trend_kws)} new keywords.")
+            except Exception as e:
+                print(f"[CYCLE] Google Trends discovery warning: {e}")
         else:
             print("[CYCLE] Keyword pool sufficient — skipping discovery.")
     except Exception as e:

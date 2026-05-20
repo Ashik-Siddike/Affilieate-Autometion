@@ -18,7 +18,7 @@ jobs:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: false        # website/ nested git repo ignore করবে
+          submodules: false        # website/ submodule ignore করবে
           fetch-depth: 1           # Shallow clone — faster
 
       - name: 🐍 Setup Python 3.11
@@ -28,7 +28,9 @@ jobs:
           cache: 'pip'
 
       - name: 📦 Install Dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: 🚀 Run Bot (Single Cycle)
         env:
