@@ -232,9 +232,9 @@ def main(config=None, log_function=print, site_config=None):
                 log_function("[DONE] Max article limit reached. Moving to next keyword.")
                 break
 
-            log_function(f"\n{'─' * 70}")
+            log_function(f"\n{'-' * 70}")
             log_function(f"[PRODUCT {product_idx}/{len(discovered_urls)}] {url}")
-            log_function(f"{'─' * 70}")
+            log_function(f"{'-' * 70}")
 
             # Extract ASIN
             asin = scraper.extract_asin(url)
