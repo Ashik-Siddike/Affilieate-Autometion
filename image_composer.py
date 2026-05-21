@@ -15,6 +15,8 @@ import io
 import math
 import os
 import requests
+import random
+import glob
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 import cloudinary
@@ -76,6 +78,38 @@ def _build_radial_gradient(size: tuple[int, int]) -> Image.Image:
 
     return img
 
+
+def _get_random_background(size: tuple[int, int]) -> Image.Image:
+    """
+    Returns a random premium background image from assets/backgrounds.
+    Falls back to radial gradient if none found or error occurs.
+    """
+    bg_dir = os.path.join(os.path.dirname(__file__), "assets", "backgrounds")
+    if os.path.exists(bg_dir):
+        bg_files = glob.glob(os.path.join(bg_dir, "*.png")) + glob.glob(os.path.join(bg_dir, "*.jpg"))
+        if bg_files:
+            try:
+                bg_path = random.choice(bg_files)
+                bg = Image.open(bg_path).convert("RGB")
+                
+                # Scale to cover and center crop
+                bg_w, bg_h = bg.size
+                target_w, target_h = size
+                scale = max(target_w / bg_w, target_h / bg_h)
+                new_w, new_h = int(bg_w * scale), int(bg_h * scale)
+                bg = bg.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                
+                left = (new_w - target_w) / 2
+                top = (new_h - target_h) / 2
+                right = (new_w + target_w) / 2
+                bottom = (new_h + target_h) / 2
+                bg = bg.crop((left, top, right, bottom))
+                
+                return bg
+            except Exception as e:
+                print(f"[COMPOSE] Error loading premium background: {e}")
+                
+    return _build_radial_gradient(size)
 
 def _add_drop_shadow(watch_img: Image.Image) -> Image.Image:
     """
@@ -289,8 +323,8 @@ def compose_image(raw_image_url: str, title: str = "") -> str:
         # ── 3. Drop-shadow / glow ────────────────────────────────────────
         shadowed = _add_drop_shadow(source_img)
 
-        # ── 4. Radial gradient canvas ────────────────────────────────────
-        canvas = _build_radial_gradient(CANVAS_SIZE)
+        # ── 4. Premium Lifestyle Canvas ──────────────────────────────────
+        canvas = _get_random_background(CANVAS_SIZE)
 
         # ── 5. Centre-paste the shadowed watch ───────────────────────────
         # Convert canvas to RGBA for compositing
@@ -356,23 +390,8 @@ def compose_pinterest_image(raw_image_url: str, title: str = "") -> str:
         shadowed = _add_drop_shadow(source_img)
 
         # 1000x1500 canvas
-        canvas = Image.new("RGB", (1000, 1500))
+        canvas = _get_random_background((1000, 1500))
         
-        # Draw gradient manually for 1000x1500
-        pixels = canvas.load()
-        cx, cy = 500, 750
-        max_radius = math.hypot(cx, cy)
-        rc, gc, bc = GRAD_CENTER_COLOR
-        re, ge, be = GRAD_EDGE_COLOR
-        for y in range(1500):
-            for x in range(1000):
-                dist = math.hypot(x - cx, y - cy)
-                t = min(dist / max_radius, 1.0)
-                r = int(rc + (re - rc) * t)
-                g = int(gc + (ge - gc) * t)
-                b = int(bc + (be - bc) * t)
-                pixels[x, y] = (r, g, b)
-
         canvas_rgba = canvas.convert("RGBA")
         
         # Center the shadowed watch
