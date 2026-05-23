@@ -114,9 +114,9 @@ if __name__ == "__main__":
 
     try:
         send_telegram_alert(
-            f"<b>GitHub Actions Cycle Started</b>\n"
-            f"Time: {datetime.now().strftime('%H:%M')} UTC\n"
-            f"Keywords: {config['max_keywords']} | Articles: {config['max_total_articles']}"
+            f"🚀 <b>Autopilot Cycle Initiated!</b>\n"
+            f"Targeting {config['max_keywords']} Keywords to generate {config['max_total_articles']} Articles.\n"
+            f"Let's make some money! 💸"
         )
 
         # ── Phase 0: Auto-discover keywords if pool is low ──
@@ -127,16 +127,18 @@ if __name__ == "__main__":
 
 
         send_telegram_alert(
-            f"<b>GitHub Actions Cycle Complete ✅</b>\n"
-            f"Time: {datetime.now().strftime('%H:%M')} UTC"
+            f"✅ <b>Autopilot Cycle Complete!</b>\n"
+            f"Mission successful. Articles are published. Going back to sleep until the next cycle! 💤☕"
         )
         print("\n✅ Cycle complete.")
     except Exception as e:
         err = traceback.format_exc()
         print(f"\n❌ Error: {e}\n{err}")
         send_telegram_alert(
-            f"<b>GitHub Actions Error ❌</b>\n"
-            f"<code>{str(e)[:300]}</code>"
+            f"🚨 <b>Oops! The Bot Hit a Snag!</b>\n"
+            f"Error details:\n"
+            f"<code>{str(e)[:300]}</code>\n"
+            f"Please check the logs boss! 🛠️"
         )
         sys.exit(1)
 
