@@ -10,3 +10,4 @@ cloudinary
 Pillow
 rembg
 onnxruntime
+beautifulsoup4

@@ -39,8 +39,8 @@ def _fetch_with_scrapingant(url: str) -> str | None:
         try:
             resp = requests.get(
                 "https://api.scrapingant.com/v2/general",
-                params={"url": url, "x-api-key": key, "browser": "false"},
-                timeout=30
+                params={"url": url, "x-api-key": key, "browser": "true"},
+                timeout=45
             )
             if resp.status_code == 200:
                 return resp.text
@@ -52,24 +52,27 @@ def _fetch_with_scrapingant(url: str) -> str | None:
 
 def _extract_titles_from_html(html: str) -> list[str]:
     """Extracts ONLY real product titles from Amazon Best Seller HTML."""
-    import json
     titles = []
 
-    # Pattern 1: data-p13n-asin-metadata JSON (most reliable — actual product data)
-    asin_blocks = re.findall(r'data-p13n-asin-metadata="([^"]+)"', html)
-    for block in asin_blocks:
-        try:
-            meta = json.loads(block.replace('&quot;', '"'))
-            if 'productTitle' in meta and len(meta['productTitle']) > 10:
-                titles.append(meta['productTitle'])
-        except Exception:
-            pass
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # New Amazon layout stores titles in div/span nodes with css-line-clamp classes
+        nodes = soup.find_all(class_=lambda x: x and 'line-clamp' in x)
+        for node in nodes:
+            t = node.get_text(strip=True)
+            if t: titles.append(t)
+            
+        # Fallback to scanning all divs and spans for long texts
+        if not titles:
+            for tag in soup.find_all(['div', 'span', 'a', 'h2']):
+                t = tag.get_text(strip=True)
+                if t: titles.append(t)
+                
+    except Exception as e:
+        print(f"[DISCOVER] BeautifulSoup error: {e}")
 
-    # Pattern 2: p13n truncate spans (Amazon bestseller specific)
-    titles += re.findall(r'class="[^"]*p13n-sc-truncate[^"]*"[^>]*>\s*([^<]{15,150})\s*<', html)
-
-    # Pattern 3: product title divs
-    titles += re.findall(r'"product-title"[^>]*>([^<]{15,150})<', html)
 
     # ── Strict filter: remove Amazon navigation/UI garbage ──
     UI_JUNK_WORDS = {
