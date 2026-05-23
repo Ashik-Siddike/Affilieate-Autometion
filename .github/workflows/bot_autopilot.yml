@@ -13,6 +13,8 @@ jobs:
   run-bot:
     runs-on: ubuntu-latest
     timeout-minutes: 60  # Max 1 hour per cycle
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: 📥 Checkout Repository
