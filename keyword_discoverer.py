@@ -112,13 +112,14 @@ def _title_to_keyword(title: str) -> str:
     return f"{title} review"
 
 
-def discover_keywords_from_bestsellers(limit: int = 20) -> list[str]:
+def discover_keywords_from_bestsellers(limit: int = 20, custom_url: str = None) -> list[str]:
     """
     Scrapes Amazon Best Seller pages and returns a list of keyword strings.
     """
     all_keywords = []
 
-    for url in BESTSELLER_URLS:
+    urls_to_scrape = [custom_url] if custom_url else BESTSELLER_URLS
+    for url in urls_to_scrape:
         if len(all_keywords) >= limit:
             break
         print(f"[DISCOVER] Scraping: {url}")
@@ -139,23 +140,23 @@ def discover_keywords_from_bestsellers(limit: int = 20) -> list[str]:
     return all_keywords
 
 
-def discover_watch_keywords(limit: int = 10) -> list[str]:
+def discover_watch_keywords(limit: int = 10, site_id: str = None, amazon_url: str = None, niche_prompt: str = None) -> list[str]:
     """
     Main discovery entry point called by the bot (Phase 0).
     Fetches keywords and saves them to Supabase keyword_pool.
     Returns list of newly added keywords.
     """
     print(f"[DISCOVER] Starting auto keyword discovery (target: {limit} keywords)...")
-    keywords = discover_keywords_from_bestsellers(limit=limit)
+    keywords = discover_keywords_from_bestsellers(limit=limit, custom_url=amazon_url)
 
     if not keywords:
         print("[DISCOVER] No keywords discovered. Using seed queries as fallback.")
-        keywords = generate_seed_queries()[:limit]
+        keywords = generate_seed_queries(niche_prompt)[:limit]
 
     added = []
     for kw in keywords:
         try:
-            result = database.add_keywords_to_pool([kw])
+            result = database.add_keywords_to_pool([kw], site_id=site_id)
             if result:
                 added.append(kw)
                 print(f"[DISCOVER] Added: {kw}")
@@ -168,16 +169,21 @@ def discover_watch_keywords(limit: int = 10) -> list[str]:
     return added
 
 
-def generate_seed_queries() -> list[str]:
+def generate_seed_queries(niche_prompt: str = None) -> list[str]:
     """
-    Fallback: generates review-intent keywords from known brands & intents.
+    Fallback: generates review-intent keywords from known intents.
     Used when scraping fails.
     """
-    brands  = ["SKMEI", "CURREN", "CASIO", "TIMEX", "Garmin", "Fossil", "Seiko"]
-    intents = ["best budget", "review", "waterproof", "cheap", "tactical", "top rated"]
+    if niche_prompt:
+        brands = [niche_prompt.split(" ")[0]]
+        item_type = niche_prompt
+    else:
+        brands  = ["Top"]
+        item_type = "product"
 
+    intents = ["best budget", "review", "cheap", "top rated"]
     queries = []
     for brand in brands:
         for intent in intents:
-            queries.append(f"{intent} {brand} watch")
+            queries.append(f"{intent} {brand} {item_type}")
     return queries

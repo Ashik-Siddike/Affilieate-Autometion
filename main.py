@@ -40,7 +40,7 @@ def mark_keyword_processed(keyword):
         f.write(f"{keyword}\n")
 
 
-def get_all_unprocessed_keywords(site_keywords=None):
+def get_all_unprocessed_keywords(site_keywords=None, site_id=None):
     """
     Returns all unprocessed keywords.
     Priority:
@@ -55,7 +55,7 @@ def get_all_unprocessed_keywords(site_keywords=None):
 
     # 2. Supabase keyword pool
     try:
-        pool_keywords = database.get_pending_keywords_from_pool(limit=50)
+        pool_keywords = database.get_pending_keywords_from_pool(site_id=site_id, limit=50)
         if pool_keywords:
             print(f"[DB] Loaded {len(pool_keywords)} keyword(s) from Supabase pool.")
             return pool_keywords
@@ -108,11 +108,32 @@ def main(config=None, log_function=print, site_config=None):
                 'trigger_n8n':            True,
                 'delay_between_products': 5,
                 'delay_between_keywords': 10,
+                'language':               'English',
             }
         else:
             config = get_user_preferences()
             if not config:
                 return
+
+    # Override with database site settings if they exist
+    if site_config and site_config.get('settings'):
+        try:
+            settings = site_config['settings']
+            if 'content_strategy' in settings:
+                config['use_comparison'] = settings['content_strategy'].get('always_include_comparison', config['use_comparison'])
+                config['language'] = settings['content_strategy'].get('language', config.get('language', 'English'))
+            
+            if 'publishing_rules' in settings:
+                config['max_total_articles'] = settings['publishing_rules'].get('articles_per_day', config['max_total_articles'])
+                config['delay_between_products'] = settings['publishing_rules'].get('delay_between_posts_minutes', config['delay_between_products']) * 60 # Convert min to sec
+                
+            if 'distribution' in settings:
+                config['publish_nextjs'] = settings['distribution'].get('publish_to_blog', config['publish_nextjs'])
+                config['trigger_n8n'] = settings['distribution'].get('post_to_facebook', config['trigger_n8n']) # Mapping facebook to n8n for now
+            
+            log_function("[CONFIG] Applied dynamic settings from database.")
+        except Exception as e:
+            log_function(f"[WARNING] Failed to parse site settings: {e}")
 
     # ------------------------------------------------------------------
     # 1. Initialize Database
@@ -123,9 +144,11 @@ def main(config=None, log_function=print, site_config=None):
     # ------------------------------------------------------------------
     # PHASE 0: Keyword Pool Health Check
     # ------------------------------------------------------------------
+    site_id = site_config.get('id') if site_config else None
+    
     try:
         import keyword_discoverer
-        pool_count = database.check_keyword_pool_count()
+        pool_count = database.check_keyword_pool_count(site_id=site_id)
         if pool_count < 5:
             log_function(f"[PHASE 0] Keyword pool low ({pool_count} pending). Triggering discovery...")
             new_keywords = keyword_discoverer.discover_watch_keywords(limit=10)
@@ -218,7 +241,7 @@ def main(config=None, log_function=print, site_config=None):
             log_function(f"[SKIP] No products found for '{keyword}'.")
             mark_keyword_processed(keyword)
             try:
-                database.mark_keyword_completed_in_pool(keyword)
+                database.mark_keyword_completed_in_pool(keyword, site_id=site_id)
             except Exception:
                 pass
             continue
@@ -244,7 +267,7 @@ def main(config=None, log_function=print, site_config=None):
                 continue
 
             # Check duplicate
-            status = database.check_product_status(asin)
+            status = database.check_product_status(asin, site_id=site_id)
             if status == 1:
                 log_function(f"[SKIP] {asin} already published.")
                 continue
@@ -264,7 +287,7 @@ def main(config=None, log_function=print, site_config=None):
             log_function(f"          Price: {product_data.get('price', 'N/A')} | Rating: {product_data.get('rating', 'N/A')}")
 
             # Save to DB
-            database.save_product(product_data)
+            database.save_product(product_data, site_id=site_id)
             log_function(f"[DB] Saved/Updated {asin}.")
 
             # Generate AI content
@@ -272,12 +295,12 @@ def main(config=None, log_function=print, site_config=None):
 
             similar_products = None
             if config['use_comparison']:
-                similar_products = database.get_similar_products(current_asin=asin, limit=2)
+                similar_products = database.get_similar_products(current_asin=asin, site_id=site_id, limit=2)
                 log_function(f"[AI] Using {len(similar_products)} similar products for comparison table.")
 
             internal_links = None
             if config['use_internal_links']:
-                internal_links = database.get_relevant_posts(keyword=keyword, limit=5)
+                internal_links = database.get_relevant_posts(keyword=keyword, site_id=site_id, limit=5)
                 log_function(f"[AI] Using {len(internal_links)} internal links for silo structure.")
 
             article_content, social_data = ai_writer.generate_article(
@@ -286,6 +309,8 @@ def main(config=None, log_function=print, site_config=None):
                 internal_links,
                 language=config.get('language', 'English'),
                 competitor_text=global_competitor_text,
+                affiliate_tag=site_config.get('affiliate_tracking_id') if site_config else None,
+                niche_prompt=site_config.get('niche_prompt') if site_config else None
             )
 
             if not article_content:
@@ -299,12 +324,18 @@ def main(config=None, log_function=print, site_config=None):
 
             # Generate platform-specific social media captions
             log_function("[AI] Generating platform-specific social media captions...")
-            _tmp_post_link = f"https://whitlogic.online/watch-reviews/{product_data.get('asin','').lower()}"
+            
+            site_domain = site_config.get('domain', 'example.com') if site_config else 'example.com'
+            _tmp_post_link = f"https://{site_domain}/reviews/{product_data.get('asin','').lower()}"
+            
+            brand_name = product_data.get('title', '').split(' ')[0] if product_data.get('title') else 'Brand'
+            
             social_captions = ai_writer.generate_social_captions(
                 title=product_data.get('title', ''),
-                brand=product_data.get('brand', brand if 'brand' in dir() else ''),
+                brand=brand_name,
                 amazon_url=product_data.get('product_url', ''),
                 review_url=_tmp_post_link,
+                niche_prompt=site_config.get('niche_prompt') if site_config else None
             )
             # Merge AI captions over any social_data from article generation
             if social_data and isinstance(social_data, dict):
@@ -315,13 +346,11 @@ def main(config=None, log_function=print, site_config=None):
 
             # Generate FAQs for rich snippets
             log_function("[AI] Generating FAQ rich snippets...")
-            import re as _re
-            _brand_match = _re.search(r'^(SKMEI|CURREN|CASIO|TIMEX|FOSSIL|SEIKO|CITIZEN)', product_data.get('title', ''), _re.IGNORECASE)
-            _brand_for_faq = _brand_match.group(1).upper() if _brand_match else 'Tactical Watch'
             faqs = ai_writer.generate_faqs(
                 title=product_data.get('title', ''),
-                brand=_brand_for_faq,
+                brand=brand_name,
                 model_number=asin,
+                niche_prompt=site_config.get('niche_prompt') if site_config else None
             )
             log_function(f"[AI] ✅ {len(faqs)} FAQ pairs generated.")
 
@@ -333,7 +362,7 @@ def main(config=None, log_function=print, site_config=None):
 
             # Append JSON-LD Schema
             log_function("[SCHEMA] Generating JSON-LD schema...")
-            schema_script   = schema_helper.generate_product_schema(product_data)
+            schema_script   = schema_helper.generate_product_schema(product_data, faqs=faqs)
             article_content += f"\n\n{schema_script}"
 
             # ------------------------------------------------------------------
@@ -361,12 +390,7 @@ def main(config=None, log_function=print, site_config=None):
                 base_slug = re.sub(r'[^a-z0-9]+', '-', product_data['title'].lower()[:50]).strip('-')
                 slug      = f"{base_slug}-{asin.lower()}"
 
-                brand_match = re.search(
-                    r'^(SKMEI|CURREN|CASIO|TIMEX|FOSSIL|SEIKO|CITIZEN)',
-                    product_data['title'],
-                    re.IGNORECASE,
-                )
-                brand = brand_match.group(1).upper() if brand_match else "Tactical Watch"
+                brand = product_data.get('title', '').split(' ')[0] if product_data.get('title') else 'Product Brand'
 
                 publish_result = publisher.publish_post(
                     title=product_data['title'],
@@ -388,8 +412,8 @@ def main(config=None, log_function=print, site_config=None):
                 if post_link:
                     log_function(f"[PUBLISHED] {post_link}")
                     stats['articles_published'] += 1
-                    database.mark_as_published(asin)
-                    database.update_post_link(asin, post_link)
+                    database.mark_as_published(asin, site_id=site_id)
+                    database.update_post_link(asin, post_link, site_id=site_id)
 
                     # Make.com social media webhook
                     if config['trigger_n8n']:
@@ -397,11 +421,15 @@ def main(config=None, log_function=print, site_config=None):
                         make_image = wp_image_url or image_url or "https://dummyimage.com/800x800/eee/333.jpg&text=Product"
 
                         # ── Add Amazon Affiliate Tag to product URL ──
-                        from config import AMAZON_AFFILIATE_TAG
+                        affiliate_tag = site_config.get('affiliate_tracking_id') if site_config else None
+                        if not affiliate_tag:
+                            from config import AMAZON_AFFILIATE_TAG
+                            affiliate_tag = AMAZON_AFFILIATE_TAG
+                            
                         product_link = product_data.get('product_url', '')
-                        if AMAZON_AFFILIATE_TAG and product_link:
+                        if affiliate_tag and product_link:
                             sep = '&' if '?' in product_link else '?'
-                            product_link = f"{product_link}{sep}tag={AMAZON_AFFILIATE_TAG}"
+                            product_link = f"{product_link}{sep}tag={affiliate_tag}"
 
                         # ── Payload must match Make.com webhook field names ──
                         make_payload = {
@@ -418,7 +446,10 @@ def main(config=None, log_function=print, site_config=None):
                             "ig_content":       social_data.get('ig_content', ''),
                             "linkedin_content": social_data.get('linkedin_content', ''),
                         }
-                        webhook_url  = site_config.get('n8n_webhook') if site_config and site_config.get('n8n_webhook') else None
+                        webhook_url = None
+                        if site_config:
+                            webhook_url = site_config.get('make_webhook_url') or site_config.get('n8n_webhook')
+                            
                         make_success = make_handler.send_to_make_webhook(make_payload, webhook_url=webhook_url)
 
                         if make_success:
@@ -443,7 +474,7 @@ def main(config=None, log_function=print, site_config=None):
         # Mark keyword as done
         mark_keyword_processed(keyword)
         try:
-            database.mark_keyword_completed_in_pool(keyword)
+            database.mark_keyword_completed_in_pool(keyword, site_id=site_id)
         except Exception:
             pass
         log_function(f"[KW DONE] '{keyword}' completed.")

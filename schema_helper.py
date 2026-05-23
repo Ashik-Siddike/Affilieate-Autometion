@@ -1,16 +1,17 @@
 import json
 import datetime
 
-def generate_product_schema(product_data, article_url=None):
+def generate_product_schema(product_data, article_url=None, faqs=None):
     """
-    Generates JSON-LD schema for a product review.
+    Generates JSON-LD schema for a product review and FAQ.
     
     Args:
         product_data (dict): Dictionary containing product details (title, price, rating, etc.)
         article_url (str, optional): The URL where this review will be published.
+        faqs (list, optional): List of dicts with 'question' and 'answer' keys.
     
     Returns:
-        str: A string containing the <script type="application/ld+json"> block.
+        str: A string containing the <script type="application/ld+json"> blocks.
     """
     if not product_data:
         return ""
@@ -61,15 +62,61 @@ def generate_product_schema(product_data, article_url=None):
             "@type": "Review",
             "reviewRating": {
               "@type": "Rating",
-              "ratingValue": "5", # Our review is always positive? Or we can use the product rating
+              "ratingValue": rating_value if float(rating_value) > 0 else "5",
               "bestRating": "5"
             },
             "author": {
               "@type": "Person",
-              "name": "AI Reviewer"
+              "name": "Expert Reviewer"
             },
-            "datePublished": datetime.date.today().isoformat()
+            "datePublished": datetime.date.today().isoformat(),
+            "positiveNotes": {
+              "@type": "ItemList",
+              "itemListElement": [
+                {
+                  "@type": "ListItem",
+                  "position": 1,
+                  "name": "Excellent build quality and durability"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 2,
+                  "name": "Great value for the price point"
+                }
+              ]
+            },
+            "negativeNotes": {
+              "@type": "ItemList",
+              "itemListElement": [
+                {
+                  "@type": "ListItem",
+                  "position": 1,
+                  "name": "Availability might be limited occasionally"
+                }
+              ]
+            }
         }
     }
 
-    return f'<script type="application/ld+json">\n{json.dumps(schema, indent=4)}\n</script>'
+    schema_blocks = [f'<script type="application/ld+json">\n{json.dumps(schema, indent=4)}\n</script>']
+    
+    # ── FAQ Schema ──
+    if faqs and isinstance(faqs, list) and len(faqs) > 0:
+        faq_schema = {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": []
+        }
+        for faq in faqs:
+            if isinstance(faq, dict) and faq.get('question') and faq.get('answer'):
+                faq_schema["mainEntity"].append({
+                    "@type": "Question",
+                    "name": faq['question'],
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": faq['answer']
+                    }
+                })
+        schema_blocks.append(f'<script type="application/ld+json">\n{json.dumps(faq_schema, indent=4)}\n</script>')
+
+    return "\n\n".join(schema_blocks)

@@ -9,28 +9,15 @@ import re
 import time
 import random
 
-# ── Watch/Gadget Niche-এর জন্য Seed Keywords ──
-SEED_QUERIES = [
+# ── Fallback Seed Keywords ──
+DEFAULT_SEED_QUERIES = [
     "best tactical watch",
     "best budget watch",
     "waterproof watch",
     "military watch",
-    "SKMEI watch",
-    "CURREN watch",
-    "Casio watch",
-    "sports watch men",
     "digital watch",
-    "diving watch budget",
-    "best watch under 20",
     "best watch under 50",
     "outdoor watch",
-    "chronograph watch affordable",
-    "fitness watch cheap",
-    "survival watch",
-    "field watch budget",
-    "pilot watch affordable",
-    "EDC watch tactical",
-    "luminous watch",
 ]
 
 # ── Google Trends Autocomplete API (Free, No Key Needed) ──
@@ -99,33 +86,32 @@ def _get_trends_suggestions(keyword: str) -> list[str]:
     return suggestions
 
 
-def _filter_watch_keywords(keywords: list[str]) -> list[str]:
+def _filter_niche_keywords(keywords: list[str], niche_prompt: str) -> list[str]:
     """
-    শুধুমাত্র watch/gadget niche-এর keywords ফিল্টার করে।
+    শুধুমাত্র নির্দিষ্ট niche-এর keywords ফিল্টার করে।
     """
-    NICHE_WORDS = {
-        "watch", "watches", "timepiece", "chronograph", "wristwatch",
-        "skmei", "curren", "casio", "timex", "fossil", "seiko", "garmin",
-        "tactical", "military", "waterproof", "dive", "digital", "analog",
-        "sports", "outdoor", "budget", "cheap", "affordable", "under",
-        "fitness", "smart watch", "smartwatch", "field", "pilot",
-    }
+    if niche_prompt:
+        # Extract the main noun/subject from niche prompt (e.g. "gaming laptop" -> "laptop")
+        niche_words = set(niche_prompt.lower().split())
+        main_word = niche_prompt.lower().split()[-1] if len(niche_prompt.split()) > 0 else "product"
+    else:
+        main_word = "watch"
+        niche_words = {"watch", "watches", "timepiece", "chronograph", "wristwatch", "tactical", "budget"}
 
     EXCLUDE_WORDS = {
-        "apple watch", "samsung watch", "galaxy watch",  # Premium brands — not our niche
-        "rolex", "omega", "breitling", "tag heuer",
+        "apple watch", "samsung watch", "galaxy watch",  # Premium brands
+        "rolex", "omega", "breitling", "tag heuer", "free", "download", "crack", "torrent"
     }
 
     filtered = []
     for kw in keywords:
         kw_lower = kw.lower().strip()
 
-        # Skip excluded brands
         if any(ex in kw_lower for ex in EXCLUDE_WORDS):
             continue
 
-        # Must contain at least one niche word
-        if any(niche in kw_lower for niche in NICHE_WORDS):
+        # Must contain the main niche word or intent
+        if main_word in kw_lower or any(niche in kw_lower for niche in niche_words):
             filtered.append(kw)
 
     return filtered
@@ -146,20 +132,30 @@ def _add_review_intent(keywords: list[str]) -> list[str]:
     return result
 
 
-def discover_trending_keywords(limit: int = 15) -> list[str]:
+def discover_trending_keywords(limit: int = 15, niche_prompt: str = None) -> list[str]:
     """
     Main entry point: Google Suggestions + Trends থেকে niche keywords discover করে।
-    
-    Returns:
-        list of keyword strings ready to be saved to Supabase keyword_pool.
     """
-    print(f"[TRENDS] Starting Google Trends keyword discovery (target: {limit})...")
+    print(f"[TRENDS] Starting Google Trends keyword discovery (target: {limit}, niche: {niche_prompt})...")
     
     all_suggestions = set()
     
+    # Generate dynamic seed queries
+    if niche_prompt:
+        dynamic_seeds = [
+            f"best {niche_prompt}",
+            f"budget {niche_prompt}",
+            f"top {niche_prompt}",
+            f"affordable {niche_prompt}",
+            f"{niche_prompt} for beginners"
+        ]
+        seeds = dynamic_seeds + [niche_prompt]
+    else:
+        seeds = list(DEFAULT_SEED_QUERIES)
+
     # ── Phase 1: Google Autocomplete থেকে suggestions ──
-    random.shuffle(SEED_QUERIES)  # Randomize to get varied results each run
-    seeds_to_use = SEED_QUERIES[:10]  # Use 10 seeds per cycle
+    random.shuffle(seeds)
+    seeds_to_use = seeds[:10]
     
     for seed in seeds_to_use:
         suggestions = _get_google_suggestions(seed)
@@ -180,7 +176,7 @@ def discover_trending_keywords(limit: int = 15) -> list[str]:
         time.sleep(random.uniform(0.5, 1.0))
 
     # ── Phase 3: Alphabet modifiers (a-z) for more variety ──
-    base_query = random.choice(["best watch", "tactical watch", "budget watch"])
+    base_query = f"best {niche_prompt}" if niche_prompt else random.choice(["best watch", "tactical watch", "budget watch"])
     for letter in random.sample("abcdefghijklmnopqrstuvwxyz", 5):
         suggestions = _get_google_suggestions(f"{base_query} {letter}")
         if suggestions:
@@ -190,7 +186,7 @@ def discover_trending_keywords(limit: int = 15) -> list[str]:
     print(f"[TRENDS] Total raw suggestions collected: {len(all_suggestions)}")
     
     # ── Filter & Clean ──
-    filtered = _filter_watch_keywords(list(all_suggestions))
+    filtered = _filter_niche_keywords(list(all_suggestions), niche_prompt)
     print(f"[TRENDS] After niche filter: {len(filtered)} keywords")
     
     # Add review intent
@@ -214,14 +210,14 @@ def discover_trending_keywords(limit: int = 15) -> list[str]:
     return final
 
 
-def discover_and_save(limit: int = 15) -> list[str]:
+def discover_and_save(limit: int = 15, site_id: str = None, niche_prompt: str = None) -> list[str]:
     """
     Keywords discover করে এবং Supabase keyword_pool-এ save করে।
     run_single_cycle.py থেকে call হয়।
     """
     import database
     
-    keywords = discover_trending_keywords(limit=limit)
+    keywords = discover_trending_keywords(limit=limit, niche_prompt=niche_prompt)
     
     if not keywords:
         print("[TRENDS] No keywords discovered from Google Trends.")

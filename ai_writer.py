@@ -118,7 +118,7 @@ def find_review_video(product_name):
             
     return ""
 
-def generate_article(product_data, similar_products=None, internal_links=None, language='English', competitor_text=None):
+def generate_article(product_data, similar_products=None, internal_links=None, language='English', competitor_text=None, affiliate_tag=None, niche_prompt=None):
     """
     Generates a Human-Like, GEO (Generative Engine Optimized) article.
     """
@@ -199,10 +199,13 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
     """
 
     # ── Inject Amazon Affiliate Tag into CTA link ──
-    from config import AMAZON_AFFILIATE_TAG
-    if AMAZON_AFFILIATE_TAG and product_link and product_link != '#':
+    if not affiliate_tag:
+        from config import AMAZON_AFFILIATE_TAG
+        affiliate_tag = AMAZON_AFFILIATE_TAG
+
+    if affiliate_tag and product_link and product_link != '#':
         sep = '&' if '?' in product_link else '?'
-        product_link_with_tag = f"{product_link}{sep}tag={AMAZON_AFFILIATE_TAG}"
+        product_link_with_tag = f"{product_link}{sep}tag={affiliate_tag}"
     else:
         product_link_with_tag = product_link
 
@@ -233,10 +236,12 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
     4. #2-#5: 50-word placeholders each
     5. FAQ: 3 questions
     6. Final Verdict + CTA button:
-    <a href="{product_link_with_tag}" target="_blank" rel="nofollow sponsored"
-       style="display:inline-block;background:#FF9900;color:#000;padding:12px 24px;border-radius:6px;font-weight:bold;text-decoration:none;">
-       ✅ Check #1 Pick Price on Amazon
-    </a>
+    <div style="text-align: center; margin: 30px 0;">
+        <a href="{product_link_with_tag}" target="_blank" rel="nofollow sponsored" data-amz-cta="true"
+           style="display:inline-block; background: linear-gradient(180deg, #f8e1aa 0%, #f4d078 100%); color: #111; padding: 14px 28px; border-radius: 8px; font-weight: bold; font-size: 1.1rem; text-decoration: none; border: 1px solid #a88734; box-shadow: 0 2px 5px rgba(0,0,0,0.1); cursor: pointer;">
+           🛒 Check #1 Pick Price on Amazon
+        </a>
+    </div>
 
     Output raw HTML body only.
 
@@ -301,10 +306,12 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
     **CTA Requirements:**
     - Use this exact Amazon link with affiliate tag: {product_link_with_tag}
     - Insert a "Check Price on Amazon" button after the Intro and at the very end:
-    <a href="{product_link_with_tag}" target="_blank" rel="nofollow sponsored"
-       style="display:inline-block;background:#FF9900;color:#000;padding:12px 24px;border-radius:6px;font-weight:bold;text-decoration:none;">
-       ✅ Check Price on Amazon
-    </a>
+    <div style="text-align: center; margin: 30px 0;">
+        <a href="{product_link_with_tag}" target="_blank" rel="nofollow sponsored" data-amz-cta="true"
+           style="display:inline-block; background: linear-gradient(180deg, #f8e1aa 0%, #f4d078 100%); color: #111; padding: 14px 28px; border-radius: 8px; font-weight: bold; font-size: 1.1rem; text-decoration: none; border: 1px solid #a88734; box-shadow: 0 2px 5px rgba(0,0,0,0.1); cursor: pointer;">
+           🛒 Check Latest Price on Amazon
+        </a>
+    </div>
 
     
     **Formatting:**
@@ -486,7 +493,7 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
     return None, None
 
 
-def generate_social_captions(title: str, brand: str, amazon_url: str, review_url: str) -> dict:
+def generate_social_captions(title: str, brand: str, amazon_url: str, review_url: str, niche_prompt: str = None) -> dict:
     """
     Uses Gemini to generate highly-optimized, platform-specific social media captions.
     Returns a dict with keys: fb_content, ig_content, pin_title, pin_desc, linkedin_content
@@ -498,8 +505,10 @@ def generate_social_captions(title: str, brand: str, amazon_url: str, review_url
         "pin_desc": f"{title} — Full Review & Best Price on Amazon! Click to read the complete review! {review_url}\n\n#ProductReview #Amazon #BestDeals #Shopping",
         "linkedin_content": f"🔎 Just published a detailed review of the {brand} — {title}\n\nGreat value for money! Check it out → {review_url}\n\n#ProductReview #Amazon #Deals",
     }
+    
+    niche_desc = f"reviewing {niche_prompt}" if niche_prompt else "reviewing best products and gear"
 
-    prompt = f"""You are an expert social media copywriter for "Whit Logic", an affiliate blog reviewing budget tactical watches and gear.
+    prompt = f"""You are an expert social media copywriter for "Whit Logic", an affiliate blog {niche_desc}.
 
 Generate platform-optimized social media content for this product:
 Product: {title}
@@ -556,7 +565,7 @@ Return ONLY a valid JSON object (no markdown, no extra text) with these exact ke
     return FALLBACK
 
 
-def generate_faqs(title: str, brand: str, model_number: str) -> list:
+def generate_faqs(title: str, brand: str, model_number: str, niche_prompt: str = None) -> list:
     """
     Uses Gemini to generate 6 SEO-optimized FAQ pairs for a product review.
     Returns a list of {"question": ..., "answer": ...} dicts.
@@ -564,14 +573,16 @@ def generate_faqs(title: str, brand: str, model_number: str) -> list:
     """
     FALLBACK = [
         {"question": f"Is the {brand} {model_number} worth buying?", "answer": f"Yes, the {brand} {model_number} offers excellent value for money. It combines durability, style, and functionality at an affordable price point, making it a top choice for budget-conscious buyers."},
-        {"question": f"Is the {brand} {model_number} waterproof?", "answer": f"The {brand} {model_number} comes with water resistance. We recommend checking the specific ATM/meter rating in our full review above for exact waterproof specifications."},
-        {"question": f"How long does the battery last on the {brand} {model_number}?", "answer": f"Battery life varies by usage mode. In standard mode, the {brand} {model_number} offers excellent battery performance. Refer to the specs table in our review for exact details."},
+        {"question": f"What are the best features of the {brand} {model_number}?", "answer": f"The {brand} {model_number} comes with excellent build quality and reliable performance. We recommend checking the specific features in our full review above for exact specifications."},
+        {"question": f"How long does the {brand} {model_number} last?", "answer": f"Lifespan varies by usage. In standard mode, the {brand} {model_number} offers excellent long-term performance. Refer to the specs table in our review for exact details."},
         {"question": f"Where can I buy the {brand} {model_number} at the best price?", "answer": f"The best price for the {brand} {model_number} is usually found on Amazon. We recommend checking our affiliate link above for the latest pricing and any available discounts."},
         {"question": f"What is the warranty on the {brand} {model_number}?", "answer": f"Warranty terms vary by seller. We recommend purchasing from Amazon's fulfilled listings for the best buyer protection and return policy."},
-        {"question": f"How does the {brand} {model_number} compare to other budget watches?", "answer": f"The {brand} {model_number} stands out from competitors in its price range by offering a combination of durability, features, and brand reliability. See our detailed comparison in the review above."},
+        {"question": f"How does the {brand} {model_number} compare to competitors?", "answer": f"The {brand} {model_number} stands out from competitors in its price range by offering a combination of durability, features, and brand reliability. See our detailed comparison in the review above."},
     ]
+    
+    niche_desc = f"that focuses on {niche_prompt}" if niche_prompt else "that focuses on high quality products"
 
-    prompt = f"""You are an SEO expert writing FAQ content for a product review blog called "Whit Logic" that focuses on budget tactical watches.
+    prompt = f"""You are an SEO expert writing FAQ content for a product review blog called "Whit Logic" {niche_desc}.
 
 Generate exactly 6 FAQ question-and-answer pairs for this product:
 Product Name: {title}
