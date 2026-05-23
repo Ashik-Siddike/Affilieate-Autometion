@@ -573,15 +573,20 @@ def send_telegram_alert(message: str):
     token   = os.getenv("TELEGRAM_TOKEN", "")
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
     if not token or not chat_id:
-        return  # silently skip if not configured
+        print(f"[TELEGRAM] Skipped — token={'SET' if token else 'MISSING'}, chat_id={'SET' if chat_id else 'MISSING'}")
+        return
     try:
-        _req.post(
+        resp = _req.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
             json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"},
             timeout=10
         )
-    except Exception:
-        pass  # never crash the bot for an alert failure
+        if resp.status_code == 200:
+            print("[TELEGRAM] ✅ Alert sent successfully.")
+        else:
+            print(f"[TELEGRAM] ❌ Failed! Status: {resp.status_code}, Response: {resp.text[:200]}")
+    except Exception as e:
+        print(f"[TELEGRAM] ❌ Error sending alert: {e}")
 
 
 # ---------------------------------------------------------------------------
