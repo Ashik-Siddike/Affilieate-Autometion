@@ -65,7 +65,7 @@ def get_all_unprocessed_keywords(site_keywords=None, site_id=None):
     # 3. Config fallback
     try:
         from config import NICHE_KEYWORDS
-        keywords = [k.strip() for k in NICHE_KEYWORDS if k.strip()]
+        keywords = [k.strip() for kw_list in NICHE_KEYWORDS.values() for k in kw_list if k.strip()]
     except (ImportError, AttributeError):
         try:
             with open("keywords.txt", "r", encoding="utf-8") as f:
@@ -142,30 +142,11 @@ def main(config=None, log_function=print, site_config=None):
     log_function("[OK] Database initialized.")
 
     # ------------------------------------------------------------------
-    # PHASE 0: Keyword Pool Health Check
-    # ------------------------------------------------------------------
-    site_id = site_config.get('id') if site_config else None
-    
-    try:
-        import keyword_discoverer
-        pool_count = database.check_keyword_pool_count(site_id=site_id)
-        if pool_count < 5:
-            log_function(f"[PHASE 0] Keyword pool low ({pool_count} pending). Triggering discovery...")
-            new_keywords = keyword_discoverer.discover_watch_keywords(limit=10)
-            if new_keywords:
-                log_function(f"[PHASE 0] Added {len(new_keywords)} new keywords to the pool.")
-            else:
-                log_function("[PHASE 0] No new keywords discovered. Add keywords manually via Supabase.")
-        else:
-            log_function(f"[PHASE 0] Keyword pool healthy ({pool_count} pending). Skipping discovery.")
-    except Exception as e:
-        log_function(f"[PHASE 0] Keyword discovery skipped: {e}")
-
-    # ------------------------------------------------------------------
     # 2. Get unprocessed keywords
     # ------------------------------------------------------------------
+    site_id = site_config.get('id') if site_config else None
     site_keywords = site_config.get('keywords', []) if site_config else None
-    unprocessed_keywords = get_all_unprocessed_keywords(site_keywords)
+    unprocessed_keywords = get_all_unprocessed_keywords(site_keywords, site_id=site_id)
 
     if not unprocessed_keywords:
         log_function("[ERROR] No new keywords to process. Please add keywords to Supabase keyword_pool.")
@@ -401,6 +382,7 @@ def main(config=None, log_function=print, site_config=None):
                     brand=brand,
                     amazon_link=product_data['product_url'],
                     faqs=faqs,
+                    site_url=site_config.get('url') if site_config else "https://whitlogic.online"
                 )
 
                 if isinstance(publish_result, tuple):

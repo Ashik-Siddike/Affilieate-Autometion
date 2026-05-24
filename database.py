@@ -77,7 +77,7 @@ def save_product(data_dict, site_id=None):
             "rating":       data_dict.get('rating'),
             "review_count": data_dict.get('review_count'),
             "image_url":    data_dict.get('image_url'),
-            "product_url":  data_dict.get(\'product_url\'),
+            "product_url":  data_dict.get('product_url'),
             "site_id": site_id,
         }
         headers = get_headers()

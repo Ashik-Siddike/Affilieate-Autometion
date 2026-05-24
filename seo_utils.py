@@ -10,6 +10,7 @@ class SEOChecker:
         Analyzes the HTML content and returns an SEO score (0-100) and feedback.
         """
         score = 0
+        density = 0
         feedback = []
         
         # Strip HTML for word count analysis

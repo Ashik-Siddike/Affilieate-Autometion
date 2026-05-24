@@ -61,9 +61,9 @@ GEMINI_API_KEYS = load_multiline_gemini_keys()
 GEMINI_API_KEY = GEMINI_API_KEYS[0] if GEMINI_API_KEYS else None
 
 # WordPress Credentials
-WP_URL = os.getenv("WP_URL", "https://little-angels-hub.wasmer.app/")
-WP_USERNAME = os.getenv("WP_USERNAME", "ashik-siddike")
-WP_APP_PASSWORD = os.getenv("WP_APP_PASSWORD", "h9lp oh9Z 6fKi C5bx RoZr z3jl")
+WP_URL = os.getenv("WP_URL", "")
+WP_USERNAME = os.getenv("WP_USERNAME", "")
+WP_APP_PASSWORD = os.getenv("WP_APP_PASSWORD", "")
 
 # n8n Webhook URL (PRODUCTION)
 # Important: Production URL requires workflow to be ACTIVE in n8n dashboard
@@ -96,9 +96,6 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 # Automation Key
 AUTO_KEY = os.getenv("AUTO_KEY")
-
-# Automation Key
-AUTO_KEY = os.getenv('AUTO_KEY')
 
 NEXT_API_URL = os.getenv('NEXT_API_URL', 'http://localhost:3000/api/posts')
 BOT_API_SECRET = os.getenv('BOT_API_SECRET', '')

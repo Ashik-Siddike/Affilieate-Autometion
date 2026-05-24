@@ -2,12 +2,9 @@ requests
 google-generativeai
 google-genai
 python-dotenv
-streamlit
-pandas
-youtube-search-python
-
 cloudinary
 Pillow
 rembg
 onnxruntime
 beautifulsoup4
+lxml

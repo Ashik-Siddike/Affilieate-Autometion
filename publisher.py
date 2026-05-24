@@ -2,10 +2,13 @@ import requests
 import time
 from config import NEXT_API_URL, BOT_API_SECRET
 
-def ping_google_sitemap():
+def ping_google_sitemap(domain_url: str = "https://whitlogic.online"):
     """Pings Google to notify that the sitemap has been updated."""
     try:
-        sitemap_url = "https://whitlogic.online/sitemap.xml"
+        base_url = domain_url.rstrip('/')
+        if not base_url.startswith('http'):
+            base_url = f"https://{base_url}"
+        sitemap_url = f"{base_url}/sitemap.xml"
         ping_url = f"https://www.google.com/ping?sitemap={sitemap_url}"
         response = requests.get(ping_url, timeout=10)
         if response.status_code == 200:
@@ -57,7 +60,7 @@ def detect_category(title: str, keyword: str = '') -> str:
     return 'tactical'
 
 
-def publish_post(title, slug, content, image_url, model_number, brand, amazon_link, faqs=None, keyword=''):
+def publish_post(title, slug, content, image_url, model_number, brand, amazon_link, faqs=None, keyword='', site_url: str = "https://whitlogic.online"):
     """
     Creates a new post via the Next.js Custom API endpoint.
     """
@@ -85,10 +88,13 @@ def publish_post(title, slug, content, image_url, model_number, brand, amazon_li
         if response and response.status_code in [200, 201]:
             print(f" Post published successfully: {title}")
             slug = response.json().get('slug')
-            full_url = f"https://whitlogic.online/watch-reviews/{slug}"
+            base_url = site_url.rstrip('/')
+            if not base_url.startswith('http'):
+                base_url = f"https://{base_url}"
+            full_url = f"{base_url}/watch-reviews/{slug}"
             
             # Ping Google after successful publish
-            ping_google_sitemap()
+            ping_google_sitemap(base_url)
             
             return full_url, image_url
         else:
