@@ -343,7 +343,15 @@ def main(config=None, log_function=print, site_config=None):
 
             # Append JSON-LD Schema
             log_function("[SCHEMA] Generating JSON-LD schema...")
-            schema_script   = schema_helper.generate_product_schema(product_data, faqs=faqs)
+            pros = social_data.get('pros') if isinstance(social_data, dict) else None
+            cons = social_data.get('cons') if isinstance(social_data, dict) else None
+            schema_script   = schema_helper.generate_product_schema(
+                product_data,
+                faqs=faqs,
+                brand_name=brand_name,
+                pros=pros,
+                cons=cons
+            )
             article_content += f"\n\n{schema_script}"
 
             # ------------------------------------------------------------------

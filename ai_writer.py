@@ -192,14 +192,15 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
     - All headings, paragraphs, and lists must be in **{language}**.
     - Do NOT mix languages unless referencing the product name itself.
     
-    ❌ **FORBIDDEN AI WORDS (Never use these):**
-    - Unleash, Unlock, Realm, Landscape, Tapestry, Symphony, Game-changer, Delve, Dive deep, Bustling, Vibrant, Meticulous, Paramount, Elevate.
+    ❌ **FORBIDDEN AI WORDS & PHRASES (Never use these):**
+    - Unleash, Unlock, Realm, Landscape, Tapestry, Symphony, Game-changer, Delve, Dive deep, Bustling, Vibrant, Meticulous, Paramount, Elevate, Testament, Not only... but also, In conclusion, Furthermore, Moreover, Last but not least, When it comes to, It is important to remember, Ultimately.
     
     ✅ **TONE & STYLE (Must follow):**
-    - **Conversational:** Write like you are talking to a friend. Use "I", "We", "You".
+    - **Conversational:** Write like you are talking to a friend. Use "I", "We", "You". Avoid formal, robotic transitions.
     - **Direct:** Don't fluff. Get to the point.
-    - **Varied Syntax:** Mix short punchy sentences with longer descriptive ones. (Perplexity/Burstiness).
-    - **Experience:** Simulate real experience. Say "I felt..." or "In my testing...".
+    - **Perplexity & Burstiness:** Use extreme variation in sentence length. Some sentences should be very short (e.g., 2-5 words) to create impact, while others are longer.
+    - **Paragraph Length:** Keep paragraphs very short—maximum 3 sentences per paragraph. This is critical for mobile readability and keeping the reader engaged.
+    - **Experience (E-E-A-T):** Simulate firsthand testing experience. Mention specific, realistic test metrics (such as battery life, durability under rain or drop tests, weight, sizing) to establish trust.
     """
 
     # ── Inject Amazon Affiliate Tag into CTA link ──
@@ -251,6 +252,8 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
 
     ```json
     {{
+      "pros": ["Dynamic Pro 1 based on review", "Dynamic Pro 2 based on review"],
+      "cons": ["Dynamic Con 1 based on review"],
       "fb_content": "🔥 TOP 10 {list_topic} RANKED!\\n\\nI've tested dozens. Here's my honest #1 pick: {title}\\n\\n👇 Full list: [post_link]\\n\\n#BestOf2025 #Shopping",
       "pin_title": "Top 10 Best {list_topic} 2025 — Expert Ranked",
       "pin_desc": "Looking for the best {list_topic}? We tested 10 options. {title} is our #1 pick. Save this for later! 🛒",
@@ -322,13 +325,15 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
     - Output raw HTML body only (no ```html tags).
     - Use <h2>, <h3>, <p>, <ul>, <li>, <strong>.
 
-    **10. 📢 Premium Social Media Bundle (JSON)**
+    **10. 📢 Premium Social Media & Review Bundle (JSON)**
     - At the VERY END, generate a strictly valid JSON block.
     - Write the social media copy with the SAME intelligence, depth, and human-like quality as the main article.
-    - Use advanced copywriting frameworks (AIDA, PAS). Act like a top-tier social media influencer and conversion copywriter.
+    - Include dynamic pros and cons of the product.
     - Format exactly like this:
     ```json
     {{
+      "pros": ["Dynamic Pro 1 based on review", "Dynamic Pro 2 based on review"],
+      "cons": ["Dynamic Con 1 based on review"],
       "fb_content": "🔥 [ATTENTION HOOK]\nStart with a highly relatable, contrarian, or thought-provoking statement that stops the scroll.\n\n💬 [BRIDGE/STORY]\nWrite 2-3 short, punchy paragraphs explaining the core problem and how this product is the ultimate solution. Be authentic, engaging, and smart. Use spacing for readability.\n\n👇 [CALL TO ACTION]\nGive them a clear, irresistible reason to click the link right now.\n\n#HighlyRelevant1 #HighlyRelevant2",
       "pin_title": "Catchy SEO Title for Pinterest (Max 90 chars)",
       "pin_desc": "Keyword-rich description highlighting the main benefit. Use bullet points. End with strong CTA: 'Save this pin & check the link to grab yours today!' #TargetKeyword1 #TargetKeyword2",
@@ -365,7 +370,9 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
             
             FLUFF_WORDS   = ["unleash", "unlock", "realm", "landscape", "tapestry",
                              "symphony", "game-changer", "delve", "dive deep",
-                             "bustling", "vibrant", "meticulous", "paramount", "elevate"]
+                             "bustling", "vibrant", "meticulous", "paramount", "elevate",
+                             "testament", "not only", "in conclusion", "last but not least",
+                             "when it comes to", "it is important to remember", "ultimately"]
             MAX_FLUFF_RETRIES = 3
 
             for model_name in preferred_models:

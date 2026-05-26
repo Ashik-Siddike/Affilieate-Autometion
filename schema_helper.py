@@ -1,7 +1,7 @@
 import json
 import datetime
 
-def generate_product_schema(product_data, article_url=None, faqs=None):
+def generate_product_schema(product_data, article_url=None, faqs=None, brand_name=None, pros=None, cons=None):
     """
     Generates JSON-LD schema for a product review and FAQ.
     
@@ -9,6 +9,9 @@ def generate_product_schema(product_data, article_url=None, faqs=None):
         product_data (dict): Dictionary containing product details (title, price, rating, etc.)
         article_url (str, optional): The URL where this review will be published.
         faqs (list, optional): List of dicts with 'question' and 'answer' keys.
+        brand_name (str, optional): The dynamically extracted brand name.
+        pros (list, optional): Dynamic pros list for review schema positiveNotes.
+        cons (list, optional): Dynamic cons list for review schema negativeNotes.
     
     Returns:
         str: A string containing the <script type="application/ld+json"> blocks.
@@ -35,6 +38,11 @@ def generate_product_schema(product_data, article_url=None, faqs=None):
     rating_value = product_data.get('rating', '0').split(' ')[0] # "4.5 out of 5" -> "4.5"
     review_count = product_data.get('review_count', '0').replace(',', '')
 
+    # Dynamically extract brand from title if not explicitly passed
+    resolved_brand = brand_name
+    if not resolved_brand:
+        resolved_brand = product_data.get('title', '').split(' ')[0] if product_data.get('title') else 'Unknown'
+
     schema = {
         "@context": "https://schema.org/",
         "@type": "Product",
@@ -44,7 +52,7 @@ def generate_product_schema(product_data, article_url=None, faqs=None):
         "sku": sku,
         "brand": {
             "@type": "Brand",
-            "name": "Unknown" # Scraper doesn't get brand yet, placeholder
+            "name": resolved_brand
         },
         "offers": {
             "@type": "Offer",
@@ -75,14 +83,12 @@ def generate_product_schema(product_data, article_url=None, faqs=None):
               "itemListElement": [
                 {
                   "@type": "ListItem",
-                  "position": 1,
-                  "name": "Excellent build quality and durability"
-                },
-                {
-                  "@type": "ListItem",
-                  "position": 2,
-                  "name": "Great value for the price point"
-                }
+                  "position": idx + 1,
+                  "name": pro
+                } for idx, pro in enumerate(pros if pros else [
+                    "Excellent build quality and durability",
+                    "Great value for the price point"
+                ])
               ]
             },
             "negativeNotes": {
@@ -90,9 +96,11 @@ def generate_product_schema(product_data, article_url=None, faqs=None):
               "itemListElement": [
                 {
                   "@type": "ListItem",
-                  "position": 1,
-                  "name": "Availability might be limited occasionally"
-                }
+                  "position": idx + 1,
+                  "name": con
+                } for idx, con in enumerate(cons if cons else [
+                    "Availability might be limited occasionally"
+                ])
               ]
             }
         }
