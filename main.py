@@ -381,6 +381,19 @@ def main(config=None, log_function=print, site_config=None):
 
                 brand = product_data.get('title', '').split(' ')[0] if product_data.get('title') else 'Product Brand'
 
+                # Build affiliate link with tracking ID
+                affiliate_tag = site_config.get('affiliate_tracking_id') if site_config else None
+                if not affiliate_tag:
+                    from config import AMAZON_AFFILIATE_TAG
+                    affiliate_tag = AMAZON_AFFILIATE_TAG
+
+                product_link = product_data['product_url']
+                if affiliate_tag and product_link and product_link != '#':
+                    sep = '&' if '?' in product_link else '?'
+                    product_link_with_tag = f"{product_link}{sep}tag={affiliate_tag}"
+                else:
+                    product_link_with_tag = product_link
+
                 publish_result = publisher.publish_post(
                     title=product_data['title'],
                     slug=slug,
@@ -388,7 +401,7 @@ def main(config=None, log_function=print, site_config=None):
                     image_url=image_url,
                     model_number=asin,
                     brand=brand,
-                    amazon_link=product_data['product_url'],
+                    amazon_link=product_link_with_tag,
                     faqs=faqs,
                     site_url=site_config.get('url') if site_config else "https://whitlogic.online"
                 )
