@@ -1,6 +1,11 @@
 import ai_writer
 import schema_helper
+import sys
 from config import GEMINI_API_KEYS
+
+# Ensure UTF-8 output on Windows terminal
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 print(f"Loaded keys: {len(GEMINI_API_KEYS)}")
 product_data = {"asin": "B0TEST1234", "title": "SKMEI Waterproof Military Watch", "price": "$19.99", "rating": "4.5 out of 5 stars", "review_count": "150", "product_url": "https://www.amazon.com/dp/B0TEST1234"}
