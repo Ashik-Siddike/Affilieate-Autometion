@@ -1,6 +1,9 @@
 from config import GEMINI_API_KEYS, SCRAPINGANT_API_KEYS
 import time
-from youtubesearchpython import VideosSearch
+try:
+    from youtubesearchpython import VideosSearch
+except ImportError:
+    VideosSearch = None
 import random
 import requests
 import re
@@ -47,35 +50,36 @@ def get_gemini_model(api_key):
 
 def find_review_video(product_name):
     """Searches YouTube for a review video and returns an embed code."""
-    try:
-        query = f"{product_name} review"
-        # Search for 1 video
-        videosSearch = VideosSearch(query, limit = 1)
-        results = videosSearch.result()
-        
-        if results['result']:
-            video = results['result'][0]
-            video_id = video['id']
-            title = video['title']
+    if VideosSearch is not None:
+        try:
+            query = f"{product_name} review"
+            # Search for 1 video
+            videosSearch = VideosSearch(query, limit = 1)
+            results = videosSearch.result()
             
-            # Create Responsive Embed Code
-            embed_code = f'''
-            <div class="video-wrapper" style="margin: 30px 0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-                <h3 style="margin-bottom: 15px; font-size: 1.2rem;">📺 Watch: {title}</h3>
-                <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
-                    <iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;" 
-                        src="https://www.youtube.com/embed/{video_id}" 
-                        title="{title}" 
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                        allowfullscreen>
-                    </iframe>
+            if results['result']:
+                video = results['result'][0]
+                video_id = video['id']
+                title = video['title']
+                
+                # Create Responsive Embed Code
+                embed_code = f'''
+                <div class="video-wrapper" style="margin: 30px 0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                    <h3 style="margin-bottom: 15px; font-size: 1.2rem;">📺 Watch: {title}</h3>
+                    <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
+                        <iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;" 
+                            src="https://www.youtube.com/embed/{video_id}" 
+                            title="{title}" 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                            allowfullscreen>
+                        </iframe>
+                    </div>
                 </div>
-            </div>
-            '''
-            return embed_code
-    except Exception as e:
-        print(f" Primary Video Search Failed: {e}")
-        pass
+                '''
+                return embed_code
+        except Exception as e:
+            print(f" Primary Video Search Failed: {e}")
+            pass
 
     # --- FALLBACK: ScrapingAnt Search ---
     print(" Attempting Fallback Video Search via ScrapingAnt...")
