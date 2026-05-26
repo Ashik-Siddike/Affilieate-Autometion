@@ -334,11 +334,11 @@ def generate_article(product_data, similar_products=None, internal_links=None, l
     {{
       "pros": ["Dynamic Pro 1 based on review", "Dynamic Pro 2 based on review"],
       "cons": ["Dynamic Con 1 based on review"],
-      "fb_content": "🔥 [ATTENTION HOOK]\nStart with a highly relatable, contrarian, or thought-provoking statement that stops the scroll.\n\n💬 [BRIDGE/STORY]\nWrite 2-3 short, punchy paragraphs explaining the core problem and how this product is the ultimate solution. Be authentic, engaging, and smart. Use spacing for readability.\n\n👇 [CALL TO ACTION]\nGive them a clear, irresistible reason to click the link right now.\n\n#HighlyRelevant1 #HighlyRelevant2",
+      "fb_content": "🔥 [ATTENTION HOOK]\\nStart with a highly relatable, contrarian, or thought-provoking statement that stops the scroll.\\n\\n💬 [BRIDGE/STORY]\\nWrite 2-3 short, punchy paragraphs explaining the core problem and how this product is the ultimate solution. Be authentic, engaging, and smart. Use spacing for readability.\\n\\n👇 [CALL TO ACTION]\\nGive them a clear, irresistible reason to click the link right now.\\n\\n#HighlyRelevant1 #HighlyRelevant2",
       "pin_title": "Catchy SEO Title for Pinterest (Max 90 chars)",
       "pin_desc": "Keyword-rich description highlighting the main benefit. Use bullet points. End with strong CTA: 'Save this pin & check the link to grab yours today!' #TargetKeyword1 #TargetKeyword2",
-      "ig_content": "✨ [STORYTELLING HOOK]\nStart with an engaging micro-story or a bold statement about a lifestyle upgrade.\n\n[VALUE DRIVEN BODY]\nBreak down WHY this product changes the game using bullet points or short, aesthetic paragraphs. Speak directly to their desires and pain points. Keep it visually structured.\n\n🔗 [BIO CTA]\nTell them exactly what to do next: 'Click the LINK IN BIO to check out the {title} and upgrade your setup!'\n\n#NicheHashtag1 #NicheHashtag2 (15-20 highly targeted hashtags)",
-      "x_content": "🚨 Don't miss out on the {title}! The ultimate solution for [Main Benefit]. \n\nCheck out why we recommend it 👇\n{product_link} \n\n#Hashtag1 #Hashtag2"
+      "ig_content": "✨ [STORYTELLING HOOK]\\nStart with an engaging micro-story or a bold statement about a lifestyle upgrade.\\n\\n[VALUE DRIVEN BODY]\\nBreak down WHY this product changes the game using bullet points or short, aesthetic paragraphs. Speak directly to their desires and pain points. Keep it visually structured.\\n\\n🔗 [BIO CTA]\\nTell them exactly what to do next: 'Click the LINK IN BIO to check out the {title} and upgrade your setup!'\\n\\n#NicheHashtag1 #NicheHashtag2",
+      "x_content": "🚨 Don't miss out on the {title}! The ultimate solution for [Main Benefit]. \\n\\nCheck out why we recommend it 👇\\n{product_link} \\n\\n#Hashtag1 #Hashtag2"
     }}
     ```
     - Ensure this JSON is strictly valid, properly quoted, and completely separated from the HTML above it.
