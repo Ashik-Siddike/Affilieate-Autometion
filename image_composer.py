@@ -28,7 +28,7 @@ try:
     from rembg import remove
     from rembg.session_factory import new_session
     REMBG_SESSION = new_session("u2netp")
-except ImportError:
+except Exception:
     remove = None
     REMBG_SESSION = None
 
