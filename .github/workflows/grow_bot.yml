@@ -1,0 +1,57 @@
+name: 🤖 Social Media Growing Agent
+
+on:
+  schedule:
+    # Runs every 8 hours
+    - cron: '0 */8 * * *'
+  workflow_dispatch: # Manual trigger
+
+permissions:
+  contents: write # Required to commit back post_state.json and topics.txt
+
+jobs:
+  run-growing-cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1 # Shallow clone for speed
+
+      - name: 🐍 Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r social-mediya-growing-agent/requirements.txt
+          playwright install --with-deps chromium
+          sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: 🔑 Reconstruct Google Flow Cookies
+        env:
+          GROWING_BOT_COOKIES: ${{ secrets.GROWING_BOT_COOKIES }}
+        run: |
+          echo "$GROWING_BOT_COOKIES" > social-mediya-growing-agent/cookies.json
+
+      - name: 🚀 Run Growth Posting Cycle (inside Xvfb virtual frame buffer)
+        env:
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
+          N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
+          CLOUDINARY_URL: ${{ secrets.CLOUDINARY_URL }}
+          BRAND_NAME: "Whitlogic"
+          POST_INTERVAL_HOURS: "8"
+        run: xvfb-run python social-mediya-growing-agent/main.py
+
+      - name: 💾 Commit & Push State Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add social-mediya-growing-agent/post_state.json social-mediya-growing-agent/topics.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: update growing bot state and topics [skip ci]" && git push)

@@ -5,3 +5,9 @@ __pycache__/
 amazon_products.db
 processed_keywords.txt
 error_log.txt
+
+# Standalone growing agent local files
+social-mediya-growing-agent/cookies.json
+social-mediya-growing-agent/post_state.json
+social-mediya-growing-agent/output/
+output/

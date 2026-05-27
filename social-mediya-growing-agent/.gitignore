@@ -8,3 +8,6 @@ __pycache__/
 # Local run state and history
 post_state.json
 output/
+
+# Local cookies/auth sessions
+cookies.json

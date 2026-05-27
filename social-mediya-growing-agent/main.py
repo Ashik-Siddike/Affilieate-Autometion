@@ -79,14 +79,43 @@ def get_next_topic():
         
     # Read rotation state
     last_index = -1
+    first_run_date = None
     if os.path.exists(state_file):
         try:
             with open(state_file, "r") as sf:
                 state = json.load(sf)
                 last_index = state.get("last_index", -1)
+                first_run_date = state.get("first_run_date")
         except Exception:
             pass
+
+    if not first_run_date:
+        first_run_date = datetime.now().isoformat()
+        days_active = 0
+    else:
+        try:
+            first_run = datetime.fromisoformat(first_run_date)
+            days_active = (datetime.now() - first_run).days
+        except Exception:
+            days_active = 0
+
+    print(f"[GROWING-AGENT] Bot active for {days_active} days (Phase 1 limit: 30 days).")
+    
+    if days_active >= 30:
+        print("[GROWING-AGENT] Phase 2: Active days >= 30. Triggering Twitter tracker to pull fresh trends...")
+        try:
+            from twitter_tracker import update_topics_pool
+            update_topics_pool()
+        except Exception as te:
+            print(f"[GROWING-AGENT] Warning: Twitter trend update failed: {te}")
             
+    # Reload topics in case twitter tracker updated the file
+    with open(topics_file, "r", encoding="utf-8") as f:
+        topics = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+
+    if not topics:
+        raise ValueError(f"Topics file '{topics_file}' is empty.")
+
     # Calculate next index
     next_index = (last_index + 1) % len(topics)
     selected_topic = topics[next_index]
@@ -94,7 +123,11 @@ def get_next_topic():
     # Save rotation state
     try:
         with open(state_file, "w") as sf:
-            json.dump({"last_index": next_index, "last_topic": selected_topic}, sf, indent=2)
+            json.dump({
+                "last_index": next_index, 
+                "last_topic": selected_topic,
+                "first_run_date": first_run_date
+            }, sf, indent=2)
     except Exception as e:
         print(f"[GROWING-AGENT] Error saving state file: {e}")
         
@@ -289,19 +322,30 @@ def run_cycle():
     # 2. Generate Copywriting Bundle
     bundle = generate_social_bundle(topic)
     
-    # 3. Create Custom Visual Image Card
+    # 3. Create Custom Visual Image Card (Try Google Flow first, fallback to Pillow card generator)
     timestamp = int(time.time())
     img_filename = f"post_{timestamp}.png"
     local_img_path = os.path.join(output_dir, img_filename)
     
-    print(f"[GROWING-AGENT] Generating visual card for: '{bundle['card_text']}'")
-    generate_card(
-        text=bundle["card_text"],
-        category_tag=bundle["category_tag"],
-        brand_name=BRAND_NAME,
-        output_path=local_img_path
-    )
-    print(f"[GROWING-AGENT] Graphic card saved to: {local_img_path}")
+    flow_success = False
+    try:
+        from flow_generator import generate_google_flow_image
+        print(f"[GROWING-AGENT] Attempting Google Flow image generation for prompt: '{bundle['card_text']}'")
+        generate_google_flow_image(bundle["card_text"], local_img_path)
+        print(f"[GROWING-AGENT] Google Flow image successfully generated and saved to: {local_img_path}")
+        flow_success = True
+    except Exception as fe:
+        print(f"[GROWING-AGENT] Warning: Google Flow generation failed ({fe}). Falling back to Pillow card generator...")
+        
+    if not flow_success:
+        print(f"[GROWING-AGENT] Generating Pillow visual card for: '{bundle['card_text']}'")
+        generate_card(
+            text=bundle["card_text"],
+            category_tag=bundle["category_tag"],
+            brand_name=BRAND_NAME,
+            output_path=local_img_path
+        )
+        print(f"[GROWING-AGENT] Pillow graphic card saved to: {local_img_path}")
     
     # 4. Upload Image to Cloudinary if URL exists
     cdn_url = upload_image_to_cloudinary(local_img_path)
@@ -341,8 +385,29 @@ def run_cycle():
     print("==================================================")
 
 if __name__ == "__main__":
-    try:
-        run_cycle()
-    except Exception as err:
-        print(f"[GROWING-AGENT] Critical Cycle Failure: {err}")
-        sys.exit(1)
+    import argparse
+    parser = argparse.ArgumentParser(description="Standalone Social Media Growing Agent")
+    parser.add_argument("--loop", action="store_true", help="Run the agent in a continuous daemon loop")
+    args = parser.parse_args()
+    
+    if args.loop:
+        interval_hours = int(os.getenv("POST_INTERVAL_HOURS", "6"))
+        interval_seconds = interval_hours * 3600
+        print(f"[GROWING-AGENT] Running in loop daemon mode. Interval: {interval_hours} hours ({interval_seconds} seconds).")
+        while True:
+            try:
+                run_cycle()
+            except Exception as e:
+                print(f"[GROWING-AGENT] Cycle error in daemon mode: {e}")
+            
+            print(f"[GROWING-AGENT] Sleeping for {interval_hours} hours... Press Ctrl+C to terminate.")
+            slept = 0
+            while slept < interval_seconds:
+                time.sleep(10)
+                slept += 10
+    else:
+        try:
+            run_cycle()
+        except Exception as err:
+            print(f"[GROWING-AGENT] Critical Cycle Failure: {err}")
+            sys.exit(1)
