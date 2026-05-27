@@ -1,0 +1,10 @@
+# Local environment configuration
+.env
+
+# Python byte-compiled files
+__pycache__/
+*.pyc
+
+# Local run state and history
+post_state.json
+output/
