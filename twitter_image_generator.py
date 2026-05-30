@@ -309,35 +309,61 @@ def generate_blog_image(
     Generates a featured image for a blog post and uploads to Cloudinary.
 
     Pipeline:
-    1. Try Gemini Imagen API → get AI-generated image
-    2. On failure → generate Pillow gradient image
-    3. Upload to Cloudinary → return CDN URL
-
-    Args:
-        title    : Blog post title
-        category : Blog category (for color scheme & prompt)
-        niche    : Site niche (e.g., "AI", "crypto")
-        site_name: Site name for watermark
-        slug     : URL slug (used for Cloudinary public_id)
-
-    Returns:
-        str: Cloudinary CDN URL, or empty string on total failure
+    1. Try Google Flow automation (via Playwright browser automation with saved session cookies)
+    2. Fallback to Gemini Imagen API -> get AI-generated image
+    3. Fallback to Pillow gradient card / image
+    4. Upload to Cloudinary -> return CDN URL
     """
     print(f"\n[IMG_GEN] Generating featured image for: '{title[:60]}...'")
+    img_bytes = None
 
-    # ── Step 1: Try Gemini Imagen ───────────────────────────────────────────
-    img_bytes = generate_with_imagen(title, category, niche)
+    # ── Step 1: Try Google Flow browser automation ──
+    try:
+        # Check if browser agent module is available
+        sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "social-mediya-growing-agent"))
+        from flow_generator import generate_google_flow_image
+        
+        # Build beautiful prompt specifically styled for flow
+        flow_prompt = _build_image_prompt(title, category, niche)
+        print(f"  [IMG_GEN] Attempting Google Flow automation with prompt: {flow_prompt[:100]}...")
+        
+        temp_flow_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scratch", f"temp_flow_{int(time.time())}.png")
+        os.makedirs(os.path.dirname(temp_flow_path), exist_ok=True)
+        
+        # Call Google Flow automation
+        generate_google_flow_image(
+            prompt_text=flow_prompt,
+            output_path=temp_flow_path,
+            aspect_ratio="16:9"
+        )
+        
+        if os.path.exists(temp_flow_path):
+            with open(temp_flow_path, "rb") as f:
+                img_bytes = f.read()
+            print("  [IMG_GEN] ✅ Google Flow image successfully generated!")
+            # Clean up temp file
+            try:
+                os.remove(temp_flow_path)
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"  [IMG_GEN] Google Flow image generation bypassed/failed: {e}")
 
-    # ── Step 2: Fallback to Pillow ──────────────────────────────────────────
+    # ── Step 2: Fallback to Gemini Imagen ───────────────────────────────────────────
     if not img_bytes:
-        print("  [IMG_GEN] Using Pillow fallback image...")
+        print("  [IMG_GEN] Falling back to Gemini Imagen API...")
+        img_bytes = generate_with_imagen(title, category, niche)
+
+    # ── Step 3: Fallback to Pillow ──────────────────────────────────────────
+    if not img_bytes:
+        print("  [IMG_GEN] Falling back to Pillow image...")
         img_bytes = generate_pillow_fallback(title, category, site_name)
 
     if not img_bytes:
         print("  [IMG_GEN] ❌ Image generation completely failed.")
         return ""
 
-    # ── Step 3: Upload to Cloudinary ───────────────────────────────────────
+    # ── Step 4: Upload to Cloudinary ───────────────────────────────────────
     if not CLOUDINARY_URL:
         print("  [IMG_GEN] Cloudinary not configured. Skipping upload.")
         return ""
