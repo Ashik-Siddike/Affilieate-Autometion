@@ -8,3 +8,5 @@ rembg
 onnxruntime
 beautifulsoup4
 lxml
+feedparser
+youtubesearchpython
