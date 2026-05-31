@@ -255,218 +255,196 @@ def main(config=None, log_function=print, site_config=None):
             elif status == 0:
                 log_function(f"[RETRY] {asin} exists but not published. Retrying...")
 
-            # Scrape product data
-            log_function("[SCRAPE] Fetching product data from Amazon...")
-            product_data = scraper.get_amazon_data(url)
+            try:
+                # Scrape product data
+                log_function("[SCRAPE] Fetching product data from Amazon...")
+                product_data = scraper.get_amazon_data(url)
 
-            if not product_data:
-                log_function("[ERROR] Failed to scrape product data. Skipping.")
-                stats['errors'] += 1
-                continue
+                if not product_data:
+                    log_function("[ERROR] Failed to scrape product data. Skipping.")
+                    stats['errors'] += 1
+                    continue
 
-            log_function(f"[SCRAPED] {product_data.get('title', 'Unknown')[:60]}")
-            log_function(f"          Price: {product_data.get('price', 'N/A')} | Rating: {product_data.get('rating', 'N/A')}")
+                log_function(f"[SCRAPED] {product_data.get('title', 'Unknown')[:60]}")
+                log_function(f"          Price: {product_data.get('price', 'N/A')} | Rating: {product_data.get('rating', 'N/A')}")
 
-            # Save to DB
-            database.save_product(product_data, site_id=site_id)
-            log_function(f"[DB] Saved/Updated {asin}.")
+                # Save to DB
+                database.save_product(product_data, site_id=site_id)
+                log_function(f"[DB] Saved/Updated {asin}.")
 
-            # Generate AI content
-            log_function("[AI] Generating article content...")
+                # Generate AI content
+                log_function("[AI] Generating article content...")
 
-            similar_products = None
-            if config['use_comparison']:
-                similar_products = database.get_similar_products(current_asin=asin, site_id=site_id, limit=2)
-                log_function(f"[AI] Using {len(similar_products)} similar products for comparison table.")
+                similar_products = None
+                if config['use_comparison']:
+                    similar_products = database.get_similar_products(current_asin=asin, site_id=site_id, limit=2)
+                    log_function(f"[AI] Using {len(similar_products)} similar products for comparison table.")
 
-            internal_links = None
-            if config['use_internal_links']:
-                internal_links = database.get_relevant_posts(keyword=keyword, site_id=site_id, limit=5)
-                log_function(f"[AI] Using {len(internal_links)} internal links for silo structure.")
+                internal_links = None
+                if config['use_internal_links']:
+                    internal_links = database.get_relevant_posts(keyword=keyword, site_id=site_id, limit=5)
+                    log_function(f"[AI] Using {len(internal_links)} internal links for silo structure.")
 
-            article_content, social_data = ai_writer.generate_article(
-                product_data,
-                similar_products,
-                internal_links,
-                language=config.get('language', 'English'),
-                competitor_text=global_competitor_text,
-                affiliate_tag=site_config.get('affiliate_tracking_id') if site_config else None,
-                niche_prompt=site_config.get('niche_prompt') if site_config else None
-            )
-
-            if not article_content:
-                log_function("[ERROR] AI content generation failed. Skipping.")
-                stats['errors'] += 1
-                continue
-
-            stats['articles_generated'] += 1
-            max_art = config['max_total_articles'] if config['max_total_articles'] > 0 else 'unlimited'
-            log_function(f"[AI] Article generated ({stats['articles_generated']}/{max_art}).")
-
-            # Generate platform-specific social media captions
-            log_function("[AI] Generating platform-specific social media captions...")
-            
-            site_domain = site_config.get('domain', 'example.com') if site_config else 'example.com'
-            _tmp_post_link = f"https://{site_domain}/reviews/{product_data.get('asin','').lower()}"
-            
-            brand_name = product_data.get('title', '').split(' ')[0] if product_data.get('title') else 'Brand'
-            
-            social_captions = ai_writer.generate_social_captions(
-                title=product_data.get('title', ''),
-                brand=brand_name,
-                amazon_url=product_data.get('product_url', ''),
-                review_url=_tmp_post_link,
-                niche_prompt=site_config.get('niche_prompt') if site_config else None
-            )
-            # Merge AI captions over any social_data from article generation
-            if social_data and isinstance(social_data, dict):
-                social_data.update(social_captions)
-            else:
-                social_data = social_captions
-            log_function("[AI] ✅ Social captions ready for all platforms.")
-
-            # Generate FAQs for rich snippets
-            log_function("[AI] Generating FAQ rich snippets...")
-            faqs = ai_writer.generate_faqs(
-                title=product_data.get('title', ''),
-                brand=brand_name,
-                model_number=asin,
-                niche_prompt=site_config.get('niche_prompt') if site_config else None
-            )
-            log_function(f"[AI] ✅ {len(faqs)} FAQ pairs generated.")
-
-            # SEO Analysis
-            seo_result = seo_checker.analyze(article_content, keyword)
-            log_function(f"[SEO] Score: {seo_result['score']}/100")
-            if seo_result.get('feedback'):
-                log_function(f"[SEO] Tips: {' | '.join(seo_result['feedback'][:2])}")
-
-            # Append JSON-LD Schema
-            log_function("[SCHEMA] Generating JSON-LD schema...")
-            pros = social_data.get('pros') if isinstance(social_data, dict) else None
-            cons = social_data.get('cons') if isinstance(social_data, dict) else None
-            schema_script   = schema_helper.generate_product_schema(
-                product_data,
-                faqs=faqs,
-                brand_name=brand_name,
-                pros=pros,
-                cons=cons
-            )
-            article_content += f"\n\n{schema_script}"
-
-            # ------------------------------------------------------------------
-            # Publish to Next.js / Vercel
-            # ------------------------------------------------------------------
-            if config['publish_nextjs']:
-                log_function("[PUBLISH] Publishing to Next.js API...")
-
-                # Image composition
-                raw_image_url = product_data.get('image_url')
-                image_url     = image_composer.compose_image(raw_image_url, title=product_data.get('title'))
-                pinterest_image_url = image_composer.compose_pinterest_image(raw_image_url, title=product_data.get('title'))
-
-                # Scheduling
-                publish_status   = 'publish'
-                publish_date_iso = None
-                if interval_minutes > 0:
-                    next_publish_time += timedelta(minutes=interval_minutes)
-                    publish_date_iso   = next_publish_time.strftime("%Y-%m-%dT%H:%M:%S")
-                    publish_status     = 'future'
-                    log_function(f"[SCHEDULE] Scheduled for: {publish_date_iso}")
-
-                # Build slug and brand
-                import re
-                base_slug = re.sub(r'[^a-z0-9]+', '-', product_data['title'].lower()[:50]).strip('-')
-                slug      = f"{base_slug}-{asin.lower()}"
-
-                brand = product_data.get('title', '').split(' ')[0] if product_data.get('title') else 'Product Brand'
-
-                # Build affiliate link with tracking ID
-                affiliate_tag = site_config.get('affiliate_tracking_id') if site_config else None
-                if not affiliate_tag:
-                    from config import AMAZON_AFFILIATE_TAG
-                    affiliate_tag = AMAZON_AFFILIATE_TAG
-
-                product_link = product_data['product_url']
-                if affiliate_tag and product_link and product_link != '#':
-                    sep = '&' if '?' in product_link else '?'
-                    product_link_with_tag = f"{product_link}{sep}tag={affiliate_tag}"
-                else:
-                    product_link_with_tag = product_link
-
-                publish_result = publisher.publish_post(
-                    title=product_data['title'],
-                    slug=slug,
-                    content=article_content,
-                    image_url=image_url,
-                    model_number=asin,
-                    brand=brand,
-                    amazon_link=product_link_with_tag,
-                    faqs=faqs,
-                    site_url=site_config.get('url') if site_config else "https://whitlogic.online"
+                article_content, social_data = ai_writer.generate_article(
+                    product_data,
+                    similar_products,
+                    internal_links,
+                    language=config.get('language', 'English'),
+                    competitor_text=global_competitor_text,
+                    affiliate_tag=site_config.get('affiliate_tracking_id') if site_config else None,
+                    niche_prompt=site_config.get('niche_prompt') if site_config else None
                 )
 
-                if isinstance(publish_result, tuple):
-                    post_link, wp_image_url = publish_result
-                else:
-                    post_link    = publish_result
-                    wp_image_url = image_url
-
-                if post_link:
-                    log_function(f"[PUBLISHED] {post_link}")
-                    stats['articles_published'] += 1
-                    database.mark_as_published(asin, site_id=site_id)
-                    database.update_post_link(asin, post_link, site_id=site_id)
-
-                    # Make.com social media webhook
-                    if config['trigger_n8n']:
-                        log_function("[MAKE] Triggering Make.com social media automation...")
-                        make_image = wp_image_url or image_url or "https://dummyimage.com/800x800/eee/333.jpg&text=Product"
-
-                        # ── Add Amazon Affiliate Tag to product URL ──
-                        affiliate_tag = site_config.get('affiliate_tracking_id') if site_config else None
-                        if not affiliate_tag:
-                            from config import AMAZON_AFFILIATE_TAG
-                            affiliate_tag = AMAZON_AFFILIATE_TAG
-                            
-                        product_link = product_data.get('product_url', '')
-                        if affiliate_tag and product_link:
-                            sep = '&' if '?' in product_link else '?'
-                            product_link = f"{product_link}{sep}tag={affiliate_tag}"
-
-                        # ── Payload must match Make.com webhook field names ──
-                        make_payload = {
-                            "title":            product_data.get('title', ''),
-                            "url":              post_link,
-                            "imageUrl":         make_image,
-                            "pinterestImageUrl": pinterest_image_url,
-                            "amazonUrl":        product_link,
-                            "keyword":          keyword,
-                            "brand":            brand,
-                            "fb_content":       social_data.get('fb_content', ''),
-                            "pin_title":        social_data.get('pin_title', ''),
-                            "pin_desc":         social_data.get('pin_desc', ''),
-                            "ig_content":       social_data.get('ig_content', ''),
-                            "linkedin_content": social_data.get('linkedin_content', ''),
-                        }
-                        webhook_url = None
-                        if site_config:
-                            webhook_url = site_config.get('make_webhook_url') or site_config.get('n8n_webhook')
-                            
-                        make_success = make_handler.send_to_make_webhook(make_payload, webhook_url=webhook_url)
-
-                        if make_success:
-                            log_function("[MAKE] Webhook triggered — content sent to all social platforms.")
-                        else:
-                            log_function("[WARNING] Make.com webhook failed. Check logs.")
-                            stats['errors'] += 1
-
-                else:
-                    log_function("[ERROR] Publishing failed.")
+                if not article_content:
+                    log_function("[ERROR] AI content generation failed. Skipping.")
                     stats['errors'] += 1
-            else:
-                log_function("[DRY RUN] Skipping Next.js publishing (user preference).")
+                    continue
 
+                stats['articles_generated'] += 1
+                max_art = config['max_total_articles'] if config['max_total_articles'] > 0 else 'unlimited'
+                log_function(f"[AI] Article generated ({stats['articles_generated']}/{max_art}).")
+
+                # Generate platform-specific social media captions
+                log_function("[AI] Generating platform-specific social media captions...")
+                
+                site_domain = site_config.get('domain', 'example.com') if site_config else 'example.com'
+                _tmp_post_link = f"https://{site_domain}/reviews/{product_data.get('asin','').lower()}"
+                
+                brand_name = product_data.get('title', '').split(' ')[0] if product_data.get('title') else 'Brand'
+                
+                social_captions = ai_writer.generate_social_captions(
+                    title=product_data.get('title', ''),
+                    brand=brand_name,
+                    amazon_url=product_data.get('product_url', ''),
+                    review_url=_tmp_post_link,
+                    niche_prompt=site_config.get('niche_prompt') if site_config else None
+                )
+                # Merge AI captions over any social_data from article generation
+                if social_data and isinstance(social_data, dict):
+                    social_data.update(social_captions)
+                else:
+                    social_data = social_captions
+                log_function("[AI] ✅ Social captions ready for all platforms.")
+
+                # Generate FAQs for rich snippets
+                log_function("[AI] Generating FAQ rich snippets...")
+                faqs = ai_writer.generate_faqs(
+                    title=product_data.get('title', ''),
+                    brand=brand_name,
+                    model_number=asin,
+                    niche_prompt=site_config.get('niche_prompt') if site_config else None
+                )
+                log_function(f"[AI] ✅ {len(faqs)} FAQ pairs generated.")
+
+                # SEO Analysis
+                seo_result = seo_checker.analyze(article_content, keyword)
+                log_function(f"[SEO] Score: {seo_result['score']}/100")
+                if seo_result.get('feedback'):
+                    log_function(f"[SEO] Tips: {' | '.join(seo_result['feedback'][:2])}")
+
+                # Append JSON-LD Schema
+                log_function("[SCHEMA] Generating JSON-LD schema...")
+                pros = social_data.get('pros') if isinstance(social_data, dict) else None
+                cons = social_data.get('cons') if isinstance(social_data, dict) else None
+                schema_script   = schema_helper.generate_product_schema(
+                    product_data,
+                    faqs=faqs,
+                    brand_name=brand_name,
+                    pros=pros,
+                    cons=cons
+                )
+                article_content += f"\n\n{schema_script}"
+
+                # Publish to Next.js / Vercel
+                if config['publish_nextjs']:
+                    log_function("[PUBLISH] Publishing to Next.js API...")
+
+                    # Image composition
+                    raw_image_url = product_data.get('image_url')
+                    image_url     = image_composer.compose_image(raw_image_url, title=product_data.get('title'))
+                    pinterest_image_url = image_composer.compose_pinterest_image(raw_image_url, title=product_data.get('title'))
+
+                    # Build slug and brand
+                    import re
+                    base_slug = re.sub(r'[^a-z0-9]+', '-', product_data['title'].lower()[:50]).strip('-')
+                    slug      = f"{base_slug}-{asin.lower()}"
+
+                    # Build affiliate link with tracking ID
+                    affiliate_tag = site_config.get('affiliate_tracking_id') if site_config else None
+                    if not affiliate_tag:
+                        from config import AMAZON_AFFILIATE_TAG
+                        affiliate_tag = AMAZON_AFFILIATE_TAG
+
+                    product_link = product_data['product_url']
+                    if affiliate_tag and product_link and product_link != '#':
+                        sep = '&' if '?' in product_link else '?'
+                        product_link_with_tag = f"{product_link}{sep}tag={affiliate_tag}"
+                    else:
+                        product_link_with_tag = product_link
+
+                    publish_result = publisher.publish_post(
+                        title=product_data['title'],
+                        slug=slug,
+                        content=article_content,
+                        image_url=image_url,
+                        model_number=asin,
+                        brand=brand_name,
+                        amazon_link=product_link_with_tag,
+                        faqs=faqs,
+                        site_url=site_config.get('url') if site_config else "https://whitlogic.online"
+                    )
+
+                    if isinstance(publish_result, tuple):
+                        post_link, wp_image_url = publish_result
+                    else:
+                        post_link    = publish_result
+                        wp_image_url = image_url
+
+                    if post_link:
+                        log_function(f"[PUBLISHED] {post_link}")
+                        stats['articles_published'] += 1
+                        database.mark_as_published(asin, site_id=site_id)
+                        database.update_post_link(asin, post_link, site_id=site_id)
+
+                        # Make.com social media webhook
+                        if config['trigger_n8n']:
+                            log_function("[MAKE] Triggering Make.com social media automation...")
+                            make_image = wp_image_url or image_url or "https://dummyimage.com/800x800/eee/333.jpg&text=Product"
+
+                            make_payload = {
+                                "title":            product_data.get('title', ''),
+                                "url":              post_link,
+                                "imageUrl":         make_image,
+                                "pinterestImageUrl": pinterest_image_url,
+                                "amazonUrl":        product_link_with_tag,
+                                "keyword":          keyword,
+                                "brand":            brand_name,
+                                "fb_content":       social_data.get('fb_content', ''),
+                                "pin_title":        social_data.get('pin_title', ''),
+                                "pin_desc":         social_data.get('pin_desc', ''),
+                                "ig_content":       social_data.get('ig_content', ''),
+                                "linkedin_content": social_data.get('linkedin_content', ''),
+                            }
+                            webhook_url = site_config.get('make_webhook_url') or site_config.get('n8n_webhook') if site_config else None
+                                
+                            make_success = make_handler.send_to_make_webhook(make_payload, webhook_url=webhook_url)
+
+                            if make_success:
+                                log_function("[MAKE] Webhook triggered — content sent to all social platforms.")
+                            else:
+                                log_function("[WARNING] Make.com webhook failed. Check logs.")
+                                stats['errors'] += 1
+
+                    else:
+                        log_function("[ERROR] Publishing failed.")
+                        stats['errors'] += 1
+                else:
+                    log_function("[DRY RUN] Skipping Next.js publishing (user preference).")
+
+            except Exception as product_err:
+                log_function(f"[CRITICAL ERROR] Failed to process product {asin}: {product_err}")
+                stats['errors'] += 1
+                
             stats['total_processed'] += 1
 
             # Delay between products

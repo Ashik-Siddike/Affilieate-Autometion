@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save } from "lucide-react";
-import { updateSiteSettings } from "@/app/admin/sites/actions";
+import { Loader2, Save, Settings, Database, Share2, Wrench } from "lucide-react";
+import { updateSiteSettings, updateSiteDetails } from "@/app/admin/sites/actions";
 import { SiteSettings, defaultSiteSettings } from "@/types/site";
 import { toast } from "sonner";
 
@@ -17,15 +17,53 @@ export function SiteSettingsPanel({ site }: { site: any }) {
     site.settings || defaultSiteSettings
   );
 
+  // Automation Core fields
+  const [sourceType, setSourceType] = useState(site.source_type || 'amazon');
+  const [twitterHandles, setTwitterHandles] = useState(
+    site.twitter_handles ? site.twitter_handles.join(', ') : ''
+  );
+  const [apiUrl, setApiUrl] = useState(site.api_url || '');
+  const [botApiSecret, setBotApiSecret] = useState(site.bot_api_secret || '');
+
+  // General fields
+  const [name, setName] = useState(site.name || '');
+  const [url, setUrl] = useState(site.url || '');
+  const [amazonBestsellerUrl, setAmazonBestsellerUrl] = useState(site.amazon_bestseller_url || '');
+  const [nichePrompt, setNichePrompt] = useState(site.niche_prompt || '');
+  const [affiliateTrackingId, setAffiliateTrackingId] = useState(site.affiliate_tracking_id || '');
+  const [makeWebhookUrl, setMakeWebhookUrl] = useState(site.make_webhook_url || '');
+
   const handleSave = async () => {
     setLoading(true);
-    const result = await updateSiteSettings(site.id, settings);
+    
+    // Parse twitter handles
+    const twitterHandlesList = twitterHandles
+      ? twitterHandles.split(',').map(h => h.trim().replace(/^@/, '')).filter(Boolean)
+      : [];
+
+    const detailsResult = await updateSiteDetails(site.id, {
+      name,
+      url,
+      source_type: sourceType,
+      twitter_handles: twitterHandlesList,
+      api_url: apiUrl,
+      bot_api_secret: botApiSecret,
+      amazon_bestseller_url: amazonBestsellerUrl,
+      niche_prompt: nichePrompt,
+      affiliate_tracking_id: affiliateTrackingId,
+      make_webhook_url: makeWebhookUrl,
+    });
+
+    const settingsResult = await updateSiteSettings(site.id, settings);
+    
     setLoading(false);
     
-    if (result.error) {
-      toast.error(result.error);
+    if (detailsResult.error) {
+      toast.error(`Details error: ${detailsResult.error}`);
+    } else if (settingsResult.error) {
+      toast.error(`Settings error: ${settingsResult.error}`);
     } else {
-      toast.success("Site settings updated.");
+      toast.success("Site configuration and settings updated.");
     }
   };
 
@@ -40,29 +78,116 @@ export function SiteSettingsPanel({ site }: { site: any }) {
   };
 
   return (
-    <div className="bg-[#111] border border-white/10 rounded-xl overflow-hidden">
-      <div className="p-4 border-b border-white/10 bg-black/40 flex justify-between items-center">
+    <div className="bg-[#111] border border-white/10 rounded-xl overflow-hidden shadow-2xl">
+      <div className="p-5 border-b border-white/10 bg-black/40 flex justify-between items-center">
         <div>
-          <h3 className="font-semibold text-lg text-white">Advanced Configuration</h3>
-          <p className="text-xs text-muted-foreground">Manage granular settings for this site.</p>
+          <h3 className="font-semibold text-lg text-white">⚙️ Site Configuration & Settings</h3>
+          <p className="text-xs text-muted-foreground opacity-80">Manage general details, core automation pipeline settings, and content strategies.</p>
         </div>
-        <Button onClick={handleSave} disabled={loading} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+        <Button onClick={handleSave} disabled={loading} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold">
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
           Save Changes
         </Button>
       </div>
 
       <div className="p-6">
-        <Tabs defaultValue="content" className="w-full flex flex-col">
+        <Tabs defaultValue="core" className="w-full flex flex-col">
           <TabsList className="flex w-full mb-6 bg-black/40 border border-white/10 rounded-lg p-1 h-auto flex-wrap sm:flex-nowrap">
-            <TabsTrigger className="flex-1 py-2" value="content">Content Strategy</TabsTrigger>
-            <TabsTrigger className="flex-1 py-2" value="publishing">Scheduling & Limits</TabsTrigger>
-            <TabsTrigger className="flex-1 py-2" value="distribution">Distribution</TabsTrigger>
+            <TabsTrigger className="flex-1 py-2 gap-1.5" value="core">
+              <Wrench size={14} /> Automation Core
+            </TabsTrigger>
+            <TabsTrigger className="flex-1 py-2 gap-1.5" value="content">
+              <Settings size={14} /> Content Strategy
+            </TabsTrigger>
+            <TabsTrigger className="flex-1 py-2 gap-1.5" value="publishing">
+              <Database size={14} /> Scheduling & Limits
+            </TabsTrigger>
+            <TabsTrigger className="flex-1 py-2 gap-1.5" value="distribution">
+              <Share2 size={14} /> Distribution
+            </TabsTrigger>
           </TabsList>
+
+          {/* AUTOMATION CORE */}
+          <TabsContent value="core" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Site Identity */}
+              <div className="space-y-4 border border-white/10 p-4 rounded-lg bg-black/20">
+                <h4 className="font-semibold text-sm text-blue-400 border-b border-white/5 pb-2">1. Site Identity & Paths</h4>
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="site_name">Site Name</Label>
+                    <Input id="site_name" className="bg-white/5 mt-1" value={name} onChange={e => setName(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="site_url">Target Site URL</Label>
+                    <Input id="site_url" className="bg-white/5 mt-1" value={url} onChange={e => setUrl(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="niche_prompt">Niche Description / Prompt</Label>
+                    <Input id="niche_prompt" className="bg-white/5 mt-1" value={nichePrompt} onChange={e => setNichePrompt(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="affiliate_id">Affiliate / Tracker Tag</Label>
+                    <Input id="affiliate_id" className="bg-white/5 mt-1" value={affiliateTrackingId} onChange={e => setAffiliateTrackingId(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Engine Configuration */}
+              <div className="space-y-4 border border-white/10 p-4 rounded-lg bg-black/20">
+                <h4 className="font-semibold text-sm text-blue-400 border-b border-white/5 pb-2">2. Automation Engine</h4>
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="core_source_type">Automation Mode</Label>
+                    <select
+                      id="core_source_type"
+                      value={sourceType}
+                      onChange={e => setSourceType(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-md p-2 mt-1 text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="amazon" className="bg-[#111]">Amazon Affiliate Scraper Mode</option>
+                      <option value="twitter" className="bg-[#111]">Twitter Trend Auto-Blog Mode</option>
+                    </select>
+                  </div>
+
+                  {sourceType === 'amazon' ? (
+                    <div>
+                      <Label htmlFor="amazon_url">Amazon Bestseller URL</Label>
+                      <Input id="amazon_url" className="bg-white/5 mt-1" value={amazonBestsellerUrl} onChange={e => setAmazonBestsellerUrl(e.target.value)} />
+                    </div>
+                  ) : (
+                    <div>
+                      <Label htmlFor="twitter_handles">Monitored Twitter Handles</Label>
+                      <Input 
+                        id="twitter_handles" 
+                        placeholder="sama, karpathy, AndrewYNg (comma-separated)" 
+                        className="bg-white/5 mt-1" 
+                        value={twitterHandles} 
+                        onChange={e => setTwitterHandles(e.target.value)} 
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">Handles the bot pulls tweets from to write trends.</p>
+                    </div>
+                  )}
+
+                  <div>
+                    <Label htmlFor="api_url">Publishing Endpoint (API URL)</Label>
+                    <Input id="api_url" className="bg-white/5 mt-1 font-mono text-xs" value={apiUrl} onChange={e => setApiUrl(e.target.value)} placeholder="https://site.com/api/posts" />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="bot_api_secret">Bot API Secret Token</Label>
+                    <Input id="bot_api_secret" type="password" className="bg-white/5 mt-1 font-mono text-xs" value={botApiSecret} onChange={e => setBotApiSecret(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </TabsContent>
 
           {/* CONTENT STRATEGY */}
           <TabsContent value="content" className="space-y-6">
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4 border border-white/10 p-4 rounded-lg bg-black/20">
                 <h4 className="font-medium text-sm text-blue-400">Article Mix (%)</h4>
                 <div className="space-y-4">

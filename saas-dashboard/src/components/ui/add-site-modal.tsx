@@ -19,6 +19,7 @@ export function AddSiteModal() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sourceType, setSourceType] = useState('amazon');
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -46,7 +47,7 @@ export function AddSiteModal() {
         <DialogHeader>
           <DialogTitle className="text-xl">Add New Site</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Configure a new target site for professional affiliate automation.
+            Configure a new target site for professional affiliate or social media trend automation.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6 pt-4">
@@ -64,23 +65,47 @@ export function AddSiteModal() {
                 <Input id="url" name="url" placeholder="https://my-site.com" required className="bg-white/5 border-white/10" />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="nichePrompt">Niche Prompt (Optional)</Label>
-              <Input id="nichePrompt" name="nichePrompt" placeholder="e.g. mechanical keyboards, gaming mice" className="bg-white/5 border-white/10" />
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="source_type">Automation Mode</Label>
+                <select
+                  id="source_type"
+                  name="source_type"
+                  value={sourceType}
+                  onChange={(e) => setSourceType(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-md p-2.5 text-white text-sm font-sans focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="amazon" className="bg-[#111]">Amazon Affiliate Scraper</option>
+                  <option value="twitter" className="bg-[#111]">Twitter Trend Auto-Blog</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="nichePrompt">Niche Prompt (Optional)</Label>
+                <Input id="nichePrompt" name="nichePrompt" placeholder="e.g. AI technology, Gadgets" className="bg-white/5 border-white/10" />
+              </div>
             </div>
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-sm font-semibold uppercase tracking-wider text-blue-400 border-b border-white/10 pb-2">2. Monetization & Data</h4>
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-blue-400 border-b border-white/10 pb-2">2. Source & Monetization</h4>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="affiliateTrackingId">Amazon Affiliate Tag</Label>
+                <Label htmlFor="affiliateTrackingId">Affiliate Tag / Tracker ID</Label>
                 <Input id="affiliateTrackingId" name="affiliateTrackingId" placeholder="e.g. mytag-20" required className="bg-white/5 border-white/10" />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="amazonUrl">Amazon Bestseller URL</Label>
-                <Input id="amazonUrl" name="amazonUrl" placeholder="https://www.amazon.com/Best-Sellers..." className="bg-white/5 border-white/10" />
-              </div>
+              
+              {sourceType === 'amazon' ? (
+                <div className="space-y-2">
+                  <Label htmlFor="amazonUrl">Amazon Bestseller URL</Label>
+                  <Input id="amazonUrl" name="amazonUrl" placeholder="https://www.amazon.com/Best-Sellers..." className="bg-white/5 border-white/10" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="twitter_handles">Twitter Handles (comma-separated)</Label>
+                  <Input id="twitter_handles" name="twitter_handles" placeholder="e.g. sama, karpathy, AndrewYNg" className="bg-white/5 border-white/10" />
+                </div>
+              )}
             </div>
           </div>
 

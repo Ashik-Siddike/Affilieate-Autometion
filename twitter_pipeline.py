@@ -29,6 +29,10 @@ import json
 import argparse
 from datetime import datetime, timezone
 
+# Ensure UTF-8 output on Windows terminal
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 # ── Module imports ─────────────────────────────────────────────────────────────
 import twitter_scraper
 import twitter_blog_writer

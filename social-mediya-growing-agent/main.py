@@ -283,7 +283,10 @@ def dispatch_webhooks(payload):
                 "title": payload["category"],
                 "description": payload["card_text"],
                 "amazon_link": "N/A - Growth Post",
-                "image_url": payload["image_url"],
+                "image_url": payload.get("image_url_16_9", payload["image_url"]),
+                "image_url_16_9": payload.get("image_url_16_9", ""),
+                "image_url_1_1": payload.get("image_url_1_1", ""),
+                "image_url_9_16": payload.get("image_url_9_16", ""),
                 "social_caption": payload["facebook_caption"],
                 "category": payload["category"],
                 "long_description": payload["facebook_caption"],
@@ -324,31 +327,114 @@ def run_cycle():
     
     # 3. Create Custom Visual Image Card (Try Google Flow first, fallback to Pillow card generator)
     timestamp = int(time.time())
-    img_filename = f"post_{timestamp}.png"
-    local_img_path = os.path.join(output_dir, img_filename)
+    local_img_path_16_9 = os.path.join(output_dir, f"post_{timestamp}_16_9.png")
+    local_img_path_1_1 = os.path.join(output_dir, f"post_{timestamp}_1_1.png")
+    local_img_path_9_16 = os.path.join(output_dir, f"post_{timestamp}_9_16.png")
+    
+    # Load metadata to check if there is a scraped reference image
+    metadata_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "topics_metadata.json")
+    scraped_ref_path = None
+    if os.path.exists(metadata_path):
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as mf:
+                metadata = json.load(mf)
+                topic_data = metadata.get(topic)
+                if topic_data:
+                    scraped_ref_path = topic_data.get("local_image_path")
+                    if scraped_ref_path and not os.path.exists(scraped_ref_path):
+                        scraped_ref_path = None
+        except Exception as me:
+            print(f"[GROWING-AGENT] Error loading metadata: {me}")
+            
+    print(f"[GROWING-AGENT] Scraped reference image path: {scraped_ref_path}")
     
     flow_success = False
     try:
         from flow_generator import generate_google_flow_image
-        print(f"[GROWING-AGENT] Attempting Google Flow image generation for prompt: '{bundle['card_text']}'")
-        generate_google_flow_image(bundle["card_text"], local_img_path)
-        print(f"[GROWING-AGENT] Google Flow image successfully generated and saved to: {local_img_path}")
+        
+        if scraped_ref_path:
+            # Case A: Sourced reference image exists (from metadata)
+            print(f"[GROWING-AGENT] Generating 16:9 image with scraped reference: {scraped_ref_path}")
+            generate_google_flow_image(
+                prompt_text=f"A clean workspace photo showing: {bundle['card_text']}, minimalist style",
+                output_path=local_img_path_16_9,
+                aspect_ratio="16:9",
+                reference_image_path=scraped_ref_path
+            )
+            
+            print(f"[GROWING-AGENT] Generating 1:1 image with scraped reference: {scraped_ref_path}")
+            generate_google_flow_image(
+                prompt_text=f"A clean workspace photo showing: {bundle['card_text']}, minimalist style",
+                output_path=local_img_path_1_1,
+                aspect_ratio="1:1",
+                reference_image_path=scraped_ref_path
+            )
+            
+            print(f"[GROWING-AGENT] Generating 9:16 image with scraped reference: {scraped_ref_path}")
+            generate_google_flow_image(
+                prompt_text=f"A clean workspace photo showing: {bundle['card_text']}, minimalist style",
+                output_path=local_img_path_9_16,
+                aspect_ratio="9:16",
+                reference_image_path=scraped_ref_path
+            )
+        else:
+            # Case B: No scraped reference image (fallback / static list)
+            # Generate each aspect ratio independently (no reference image)
+            # Google Flow ignores aspect ratio settings when reference images are used,
+            # so each variant must be generated as a fresh image with the correct ratio.
+            # PIL post-processing in flow_generator.py acts as a safety net.
+            image_prompt = bundle["card_text"]
+            
+            print("[GROWING-AGENT] Generating 16:9 image (no reference)...")
+            generate_google_flow_image(
+                prompt_text=image_prompt,
+                output_path=local_img_path_16_9,
+                aspect_ratio="16:9",
+                reference_image_path=None
+            )
+            
+            print("[GROWING-AGENT] Generating 1:1 image (no reference)...")
+            generate_google_flow_image(
+                prompt_text=image_prompt,
+                output_path=local_img_path_1_1,
+                aspect_ratio="1:1",
+                reference_image_path=None
+            )
+            
+            print("[GROWING-AGENT] Generating 9:16 image (no reference)...")
+            generate_google_flow_image(
+                prompt_text=image_prompt,
+                output_path=local_img_path_9_16,
+                aspect_ratio="9:16",
+                reference_image_path=None
+            )
+            
+        print("[GROWING-AGENT] Google Flow image variants successfully generated!")
         flow_success = True
     except Exception as fe:
         print(f"[GROWING-AGENT] Warning: Google Flow generation failed ({fe}). Falling back to Pillow card generator...")
         
     if not flow_success:
+        # Generate single Pillow card and replicate it for all formats to avoid pipeline failure
+        pillow_card_path = os.path.join(output_dir, f"post_{timestamp}_pillow.png")
         print(f"[GROWING-AGENT] Generating Pillow visual card for: '{bundle['card_text']}'")
         generate_card(
             text=bundle["card_text"],
             category_tag=bundle["category_tag"],
             brand_name=BRAND_NAME,
-            output_path=local_img_path
+            output_path=pillow_card_path
         )
-        print(f"[GROWING-AGENT] Pillow graphic card saved to: {local_img_path}")
+        import shutil
+        shutil.copy(pillow_card_path, local_img_path_16_9)
+        shutil.copy(pillow_card_path, local_img_path_1_1)
+        shutil.copy(pillow_card_path, local_img_path_9_16)
+        print(f"[GROWING-AGENT] Pillow graphic card replicated across all formats.")
     
-    # 4. Upload Image to Cloudinary if URL exists
-    cdn_url = upload_image_to_cloudinary(local_img_path)
+    # 4. Upload Images to Cloudinary if URL exists
+    print("[GROWING-AGENT] Uploading visual assets to Cloudinary...")
+    cdn_url_16_9 = upload_image_to_cloudinary(local_img_path_16_9)
+    cdn_url_1_1 = upload_image_to_cloudinary(local_img_path_1_1)
+    cdn_url_9_16 = upload_image_to_cloudinary(local_img_path_9_16)
     
     # 5. Compile payload
     payload = {
@@ -357,8 +443,14 @@ def run_cycle():
         "facebook_caption": bundle["fb_content"],
         "instagram_caption": bundle["ig_content"],
         "twitter_caption": bundle["x_content"],
-        "image_url": cdn_url,
-        "local_image_path": local_img_path,
+        "image_url": cdn_url_16_9 or cdn_url_1_1 or cdn_url_9_16, # backward compatibility
+        "image_url_16_9": cdn_url_16_9,
+        "image_url_1_1": cdn_url_1_1,
+        "image_url_9_16": cdn_url_9_16,
+        "local_image_path": local_img_path_16_9, # backward compatibility
+        "local_image_path_16_9": local_img_path_16_9,
+        "local_image_path_1_1": local_img_path_1_1,
+        "local_image_path_9_16": local_img_path_9_16,
         "timestamp": timestamp
     }
     

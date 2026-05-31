@@ -12,10 +12,16 @@ export async function addSite(formData: FormData) {
   const nichePrompt = formData.get('nichePrompt') as string;
   const affiliateTrackingId = formData.get('affiliateTrackingId') as string;
   const makeWebhookUrl = formData.get('makeWebhookUrl') as string;
+  const sourceType = (formData.get('source_type') as string) || 'amazon';
+  const twitterHandlesRaw = formData.get('twitter_handles') as string;
   
   if (!name || !url || !affiliateTrackingId) {
     return { error: 'Site name, URL, and Affiliate Tracking ID are required' };
   }
+
+  const twitterHandles = twitterHandlesRaw
+    ? twitterHandlesRaw.split(',').map(h => h.trim().replace(/^@/, '')).filter(Boolean)
+    : [];
 
   // Fetch global settings to inherit
   const { data: globalData } = await supabase
@@ -35,6 +41,8 @@ export async function addSite(formData: FormData) {
       niche_prompt: nichePrompt,
       affiliate_tracking_id: affiliateTrackingId,
       make_webhook_url: makeWebhookUrl,
+      source_type: sourceType,
+      twitter_handles: twitterHandles,
       settings: settingsToApply,
       status: 'active'
     }]);
@@ -78,3 +86,31 @@ export async function updateSiteSettings(id: string, settings: any) {
   revalidatePath(`/admin/sites/${id}`);
   return { success: true };
 }
+
+export async function updateSiteDetails(id: string, details: {
+  source_type?: string;
+  twitter_handles?: string[];
+  api_url?: string;
+  bot_api_secret?: string;
+  name?: string;
+  url?: string;
+  amazon_bestseller_url?: string;
+  niche_prompt?: string;
+  affiliate_tracking_id?: string;
+  make_webhook_url?: string;
+}) {
+  const { data, error } = await supabase
+    .from('sites')
+    .update(details)
+    .eq('id', id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  // If source_type is updated, we sync twitter handles table or update processed logs as needed
+  revalidatePath(`/admin/sites/${id}`);
+  revalidatePath('/admin/sites');
+  return { success: true };
+}
+
