@@ -39,13 +39,14 @@ def _next_key():
     print(f"  [AI] Rotated to Gemini key {_key_index + 1}/{len(GEMINI_API_KEYS)}")
 
 
-def _call_gemini(prompt: str, max_retries: int = 3) -> Optional[str]:
+def _call_gemini(prompt: str, max_retries: int = 5) -> Optional[str]:
     """
-    Calls Gemini API with automatic key rotation on quota errors.
+    Calls Gemini API with automatic key rotation on any error.
     Returns response text or None.
     """
     from google import genai
 
+    # Try up to max_retries times, rotating key each time
     for attempt in range(max_retries):
         try:
             key = _get_key()
@@ -57,18 +58,9 @@ def _call_gemini(prompt: str, max_retries: int = 3) -> Optional[str]:
             return response.text.strip()
 
         except Exception as e:
-            err = str(e).lower()
-            if any(x in err for x in ["429", "quota", "exhausted", "rate limit"]):
-                print(f"  [AI] Quota hit. Rotating key...")
-                _next_key()
-                time.sleep(2 ** attempt)  # Exponential backoff
-                continue
-            else:
-                print(f"  [AI] Gemini error (attempt {attempt+1}): {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(2)
-                    continue
-                return None
+            print(f"  [AI] Gemini error with key {attempt+1}/{len(GEMINI_API_KEYS)}: {e}")
+            _next_key()  # Rotate immediately to the next key in the pool
+            time.sleep(2)  # Short delay before retrying with new key
 
     return None
 

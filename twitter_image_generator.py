@@ -127,16 +127,11 @@ def generate_with_imagen(title: str, category: str = "", niche: str = "") -> byt
                 return img_bytes
 
         except Exception as e:
-            error_str = str(e).lower()
-            if "429" in error_str or "quota" in error_str or "exhausted" in error_str:
-                print(f"  [IMAGEN] Key {i+1} quota exceeded. Trying next key...")
+            print(f"  [IMAGEN] Key {i+1} error: {e}")
+            if i < len(GEMINI_API_KEYS) - 1:
                 time.sleep(2)
                 continue
-            else:
-                print(f"  [IMAGEN] Key {i+1} error: {e}")
-                if i < len(GEMINI_API_KEYS) - 1:
-                    continue
-                break
+            break
 
     print("  [IMAGEN] ⚠️  All Gemini keys exhausted. Falling back to Pillow.")
     return None
