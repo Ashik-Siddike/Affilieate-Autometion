@@ -388,6 +388,49 @@ def run_twitter_pipeline(
                 print(f"  [PIPELINE] ✅ Published: {post_url}")
                 print(f"  [PIPELINE] 📸 Image: {image_url[:60] if image_url else 'No image'}")
 
+                # 5f. Generate Social Captions & Trigger Make.com Webhook
+                webhook_url = site_config.get('make_webhook_url') or site_config.get('n8n_webhook')
+                if webhook_url and not dry_run:
+                    print("  [PIPELINE] 📱 Generating social captions for Make.com cross-posting...")
+                    try:
+                        social_captions = twitter_blog_writer.generate_social_captions_for_blog(
+                            title=blog['title'],
+                            summary=blog.get('summary', ''),
+                            blog_url=post_url,
+                            niche=niche
+                        )
+                        
+                        import make_handler
+                        make_payload = {
+                            "title":            blog['title'],
+                            "url":              post_url,
+                            "imageUrl":         image_url,
+                            "pinterestImageUrl": image_url,
+                            "amazonUrl":        "", # Standard blogs have no amazon links
+                            "keyword":          blog.get('tags', [category])[0] if blog.get('tags') else 'Tech',
+                            "brand":            "Blog",
+                            "fb_content":       social_captions.get('fb_content', ''),
+                            "pin_title":        social_captions.get('pin_title', ''),
+                            "pin_desc":         social_captions.get('pin_desc', ''),
+                            "ig_content":       social_captions.get('ig_content', ''),
+                            "linkedin_content": social_captions.get('linkedin_content', ''),
+                        }
+                        
+                        print("  [PIPELINE] 🚀 Triggering Make.com social media cross-poster...")
+                        make_success = make_handler.send_to_make_webhook(make_payload, webhook_url=webhook_url)
+                        if make_success:
+                            print("  [PIPELINE] ✅ Make.com social cross-posting completed.")
+                        else:
+                            print("  [PIPELINE] ⚠️ Make.com webhook trigger failed.")
+                            
+                    except Exception as social_err:
+                        print(f"  [PIPELINE] ⚠️ Failed to execute social sharing flow: {social_err}")
+                else:
+                    if not webhook_url:
+                        print("  [PIPELINE] Make.com webhook not configured for this site. Skipping social sharing.")
+                    else:
+                        print("  [PIPELINE] Dry-run enabled. Skipping social sharing.")
+
             else:
                 stats['errors'] += 1
                 print("  [PIPELINE] ❌ Publish failed.")

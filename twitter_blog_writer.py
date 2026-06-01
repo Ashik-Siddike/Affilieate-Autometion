@@ -361,6 +361,68 @@ def _generate_slug(text: str) -> str:
     return f"{slug}-{suffix}"
 
 
+def generate_social_captions_for_blog(title: str, summary: str, blog_url: str, niche: str = "") -> dict:
+    """
+    Uses Gemini to generate highly-optimized, platform-specific social media captions for a blog post.
+    Returns a dict with keys: fb_content, ig_content, pin_title, pin_desc, linkedin_content
+    """
+    FALLBACK = {
+        "fb_content": f"🔥 {title}\n\n📝 New blog post is live!\n✅ Read full article here → {blog_url}\n\n#Blog #News #{niche or 'Tech'}",
+        "ig_content": f"🔥 {title}\n\n📝 New blog post is live! Click the link in our bio to read the full analysis!\n\n#Blog #News #LatestUpdates #{niche or 'Tech'}",
+        "pin_title": f"New Article: {title}",
+        "pin_desc": f"{title} — Read the complete article on our blog! {blog_url}\n\n#Blog #News #LatestUpdates",
+        "linkedin_content": f"🔎 Just published: {title}\n\nRead the full article → {blog_url}\n\n#Blog #Professional #Updates",
+    }
+
+    prompt = f"""You are an expert social media copywriter.
+Generate platform-optimized social media content for this blog post:
+Title: {title}
+Summary: {summary}
+Blog Link: {blog_url}
+Niche: {niche}
+
+Return ONLY a valid JSON object (no markdown, no extra text) with these exact keys:
+{{
+  "fb_content": "Conversational, engaging Facebook post. 2-3 short paragraphs. Include emojis. End with CTA to click the blog link. Include 3-5 relevant hashtags.",
+  "ig_content": "Visual, emoji-rich Instagram caption with line breaks. 15-20 hashtags. End with 'Link in bio!'. Do NOT include the actual URL.",
+  "pin_title": "SEO-friendly Pinterest pin title under 100 characters.",
+  "pin_desc": "Pinterest description under 500 characters. Include the blog URL naturally. Add 5-8 hashtags.",
+  "linkedin_content": "Professional, value-driven LinkedIn post. 2-3 paragraphs. Include the blog URL. 3-5 professional hashtags."
+}}"""
+
+    max_attempts = len(GEMINI_API_KEYS) * 2
+    for attempt in range(max_attempts):
+        try:
+            response = _call_gemini(prompt)
+            if not response:
+                raise ValueError("No response from Gemini")
+                
+            raw = response.strip()
+            raw = re.sub(r'```(?:json)?\s*', '', raw)
+            raw = re.sub(r'```\s*', '', raw).strip()
+
+            start = raw.find('{')
+            end = raw.rfind('}') + 1
+            if start == -1 or end == 0:
+                raise ValueError("No JSON found in response.")
+
+            captions = json.loads(raw[start:end])
+            for key in FALLBACK:
+                if key not in captions or not captions[key]:
+                    captions[key] = FALLBACK[key]
+
+            print("  [AI:social] ✅ Social captions generated successfully.")
+            return captions
+
+        except Exception as e:
+            print(f"  [AI:social] Error (attempt {attempt+1}): {e}. Rotating key...")
+            _next_key()
+            time.sleep(1)
+
+    print("  [AI:social] All retries exhausted. Using fallback captions.")
+    return FALLBACK
+
+
 # ── Quick Test ─────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
