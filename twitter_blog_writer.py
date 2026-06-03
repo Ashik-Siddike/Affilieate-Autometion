@@ -41,21 +41,53 @@ def _next_key():
 
 def _call_gemini(prompt: str, max_retries: int = 5) -> Optional[str]:
     """
-    Calls Gemini API with automatic key rotation on any error.
+    Calls Gemini API with automatic key rotation and model fallback.
     Returns response text or None.
     """
     from google import genai
+
+    preferred_models = [
+        'gemini-2.5-flash',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+        'gemini-2.0-flash',
+        'gemini-1.0-pro',
+        'gemini-pro',
+    ]
+
+    def is_quota_error(error):
+        error_str = str(error).lower()
+        quota_indicators = [
+            "429", "quota exceeded", "quota", "resource exhausted",
+            "rate limit", "permission denied", "403", "billing", "credit"
+        ]
+        return any(indicator in error_str for indicator in quota_indicators)
 
     # Try up to max_retries times, rotating key each time
     for attempt in range(max_retries):
         try:
             key = _get_key()
             client = genai.Client(api_key=key)
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt,
-            )
-            return response.text.strip()
+            
+            response = None
+            last_error = None
+            
+            for model_name in preferred_models:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                    )
+                    if response and response.text:
+                        return response.text.strip()
+                except Exception as model_err:
+                    if is_quota_error(model_err):
+                        raise model_err  # Raise to trigger key rotation
+                    last_error = model_err
+                    continue
+            
+            if last_error:
+                raise last_error
 
         except Exception as e:
             print(f"  [AI] Gemini error with key {attempt+1}/{len(GEMINI_API_KEYS)}: {e}")

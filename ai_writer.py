@@ -536,15 +536,42 @@ Return ONLY a valid JSON object (no markdown, no extra text) with these exact ke
   "linkedin_content": "Professional, value-driven LinkedIn post. 2-3 paragraphs. Focus on value-for-money. Include review URL. 3-5 professional hashtags."
 }}"""
 
+    preferred_models = [
+        'gemini-2.5-flash',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+        'gemini-2.0-flash',
+        'gemini-1.0-pro',
+        'gemini-pro',
+    ]
+
     max_attempts = len(GEMINI_API_KEYS) * 2
     for attempt in range(max_attempts):
         try:
             api_key = get_current_gemini_key()
             client = get_gemini_model(api_key)
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt,
-            )
+            
+            response = None
+            last_error = None
+            for model_name in preferred_models:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                    )
+                    if response and response.text:
+                        break
+                except Exception as model_err:
+                    if is_quota_error(model_err):
+                        raise model_err
+                    last_error = model_err
+                    continue
+            
+            if not response or not response.text:
+                if last_error:
+                    raise last_error
+                raise ValueError("No response from Gemini")
+
             raw = response.text.strip()
             raw = re.sub(r'```(?:json)?\s*', '', raw)
             raw = re.sub(r'```\s*', '', raw).strip()
@@ -617,15 +644,42 @@ Return ONLY a valid JSON array (no markdown, no extra text):
   {{"question": "...", "answer": "..."}}
 ]"""
 
+    preferred_models = [
+        'gemini-2.5-flash',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+        'gemini-2.0-flash',
+        'gemini-1.0-pro',
+        'gemini-pro',
+    ]
+
     max_attempts = len(GEMINI_API_KEYS) * 2
     for attempt in range(max_attempts):
         try:
             api_key = get_current_gemini_key()
             client = get_gemini_model(api_key)
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=prompt,
-            )
+            
+            response = None
+            last_error = None
+            for model_name in preferred_models:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                    )
+                    if response and response.text:
+                        break
+                except Exception as model_err:
+                    if is_quota_error(model_err):
+                        raise model_err
+                    last_error = model_err
+                    continue
+            
+            if not response or not response.text:
+                if last_error:
+                    raise last_error
+                raise ValueError("No response from Gemini")
+
             raw = response.text.strip()
             raw = re.sub(r'```(?:json)?\s*', '', raw)
             raw = re.sub(r'```\s*', '', raw).strip()

@@ -9,4 +9,4 @@ onnxruntime
 beautifulsoup4
 lxml
 feedparser
-youtubesearchpython
+youtube-search-python

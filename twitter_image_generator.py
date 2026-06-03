@@ -76,10 +76,34 @@ Output ONLY the image prompt, nothing else. No quotes, no labels."""
             raise ValueError("No Gemini key")
 
         client = genai.Client(api_key=key)
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt
-        )
+        preferred_models = [
+            'gemini-2.5-flash',
+            'gemini-1.5-flash',
+            'gemini-1.5-pro',
+            'gemini-2.0-flash',
+            'gemini-1.0-pro',
+            'gemini-pro',
+        ]
+        
+        response = None
+        last_error = None
+        for model_name in preferred_models:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
+                if response and response.text:
+                    break
+            except Exception as model_err:
+                last_error = model_err
+                continue
+                
+        if not response or not response.text:
+            if last_error:
+                raise last_error
+            raise ValueError("Empty response from Gemini")
+
         image_prompt = response.text.strip()
         print(f"  [IMAGEN] Generated prompt: {image_prompt[:100]}...")
         return image_prompt
