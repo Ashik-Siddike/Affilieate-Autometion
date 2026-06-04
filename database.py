@@ -23,8 +23,47 @@ def get_headers():
 # ---------------------------------------------------------------------------
 # Connection check
 # ---------------------------------------------------------------------------
+def ping_portfolio_db():
+    """Pings the portfolio database to prevent auto-pause."""
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        env_path = os.path.join(base_dir, "new-portfolio", ".env")
+        if not os.path.exists(env_path):
+            return
+        
+        url = None
+        key = None
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f.readlines():
+                if line.startswith("VITE_SUPABASE_URL="):
+                    url = line.split("=")[1].strip()
+                elif line.startswith("VITE_SUPABASE_ANON_KEY="):
+                    key = line.split("=")[1].strip()
+        
+        if not url or not key:
+            return
+            
+        headers = {
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+        }
+        
+        ping_url = f"{url}/rest/v1/projects?select=count&limit=1"
+        resp = requests.get(ping_url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            print("[OK] Portfolio database pinged successfully to prevent auto-pause.")
+        else:
+            print(f"[WARNING] Portfolio database ping failed: {resp.text}")
+    except Exception as e:
+        print(f"[WARNING] Error pinging portfolio database: {e}")
+
+
 def init_db():
     """Confirms connection to Supabase via REST API."""
+    # Ping portfolio db to keep it active
+    ping_portfolio_db()
+    
     if not SUPABASE_URL or not SUPABASE_KEY:
         print("[WARNING] Supabase credentials missing.")
         return
