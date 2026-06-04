@@ -122,8 +122,6 @@ def extract_topics_via_gemini(tweets: list[dict]) -> list[dict]:
         print("[TWITTER-TRACKER] Warning: No GEMINI_API_KEYS found. Cannot extract topics.")
         return []
         
-    client = genai.Client(api_key=api_keys[0])
-    
     # Format tweets as a numbered block
     tweets_list = []
     for idx, t in enumerate(tweets):
@@ -153,33 +151,36 @@ Rules:
     
     prompt = f"Extract niche-relevant educational topics from these numbered tweets:\n\n{tweets_block}"
     
-    try:
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=system_prompt + "\n\n" + prompt
-        )
-        if response and response.text:
-            text = response.text.strip()
-            # Strip markdown fences if added
-            if text.startswith("```json"):
-                text = text.replace("```json", "", 1)
-            if text.endswith("```"):
-                text = text[:-3].strip()
-            text = text.strip()
+    for i, api_key in enumerate(api_keys):
+        try:
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=system_prompt + "\n\n" + prompt
+            )
+            if response and response.text:
+                text = response.text.strip()
+                # Strip markdown fences if added
+                if text.startswith("```json"):
+                    text = text.replace("```json", "", 1)
+                if text.endswith("```"):
+                    text = text[:-3].strip()
+                text = text.strip()
+                
+                topics_data = json.loads(text)
+                if isinstance(topics_data, list):
+                    valid_topics = []
+                    for entry in topics_data:
+                        if isinstance(entry, dict) and "topic" in entry and "tweet_index" in entry:
+                            valid_topics.append({
+                                "topic": entry["topic"].strip(),
+                                "tweet_index": int(entry["tweet_index"])
+                            })
+                    return valid_topics
+        except Exception as e:
+            print(f"[TWITTER-TRACKER] Gemini key {i+1}/{len(api_keys)} failed: {e}")
+            continue
             
-            topics_data = json.loads(text)
-            if isinstance(topics_data, list):
-                valid_topics = []
-                for entry in topics_data:
-                    if isinstance(entry, dict) and "topic" in entry and "tweet_index" in entry:
-                        valid_topics.append({
-                            "topic": entry["topic"].strip(),
-                            "tweet_index": int(entry["tweet_index"])
-                        })
-                return valid_topics
-    except Exception as e:
-        print(f"[TWITTER-TRACKER] Gemini extraction failed: {e}")
-        
     return []
 
 def get_existing_topics(topics_path: str) -> list[str]:

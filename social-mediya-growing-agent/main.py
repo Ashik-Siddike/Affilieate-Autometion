@@ -223,12 +223,9 @@ def generate_social_bundle(topic):
                         continue
                         
             except errors.APIError as api_err:
-                if is_quota_limit_error(api_err):
-                    print(f"[GROWING-AGENT] Quota/API limit hit: {api_err}")
-                    rotate_api_key()
-                    break # break inner model loop, proceed to next key in outer loop
-                else:
-                    print(f"[GROWING-AGENT] API Error: {api_err}")
+                print(f"[GROWING-AGENT] API Error: {api_err}")
+                rotate_api_key()
+                break # break inner model loop, proceed to next key in outer loop
             except Exception as e:
                 print(f"[GROWING-AGENT] Unexpected model error: {e}")
                 
