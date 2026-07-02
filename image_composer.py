@@ -27,8 +27,19 @@ from config import CLOUDINARY_URL
 try:
     from rembg import remove
     from rembg.session_factory import new_session
-    REMBG_SESSION = new_session("u2netp")
-except Exception:
+    
+    # Try models in order of quality (isnet-general-use -> u2net -> u2netp)
+    REMBG_SESSION = None
+    for model_name in ["isnet-general-use", "u2net", "u2netp"]:
+        try:
+            print(f"[REMBG] Attempting to load background removal model: {model_name}...")
+            REMBG_SESSION = new_session(model_name)
+            print(f"[REMBG] Successfully loaded model: {model_name}")
+            break
+        except Exception as e:
+            print(f"[REMBG] Failed to load model {model_name}: {e}")
+except Exception as exc:
+    print(f"[REMBG] Import failed or general initialization error: {exc}")
     remove = None
     REMBG_SESSION = None
 
